@@ -3,23 +3,27 @@ cube_manipulation_ws/
 ├── .gitignore
 ├── .gitattributes                 # Git LFS 설정 (models/ 하위 대형 파일 추적)
 │
-├── src/                            # colcon으로 빌드되는 ROS2 패키지들
-│   ├── cube_detection/
-│   │   ├── cube_detection/            # 추론 노드 (이미지 구독 → OBB 추론 → publish)
-│   │   ├── models/                    # yolo26n-obb 파인튜닝 가중치 (.pt, LFS)
-│   │   ├── launch/
-│   │   └── package.xml / setup.py
+├── src/                            # colcon 빌드 대상 (ROS2 패키지)
+│   ├── perception/
+│   │   └── cube_detection/
+│   │       ├── cube_detection/        # 추론 노드 (이미지 구독 → OBB 추론 → publish)
+│   │       ├── models/                # yolo26n-obb 파인튜닝 가중치 (.pt, LFS)
+│   │       ├── launch/
+│   │       └── package.xml / setup.py
 │   │
-│   ├── rl_policy/
-│   │   ├── rl_policy/
-│   │   │   ├── custom_hand_policy/    # SB3 PPO 모델 로드 및 추론 노드
-│   │   │   └── leap_hand_policy/      # SB3 SAC 모델 로드 및 추론 노드
-│   │   ├── models/                    # 학습 완료된 .zip 정책 파일 (LFS)
-│   │   ├── launch/
-│   │   └── package.xml / setup.py
+│   ├── policy/
+│   │   └── rl_policy/
+│   │       ├── rl_policy/
+│   │       │   ├── custom_hand_policy/  # SB3 PPO 모델 로드 및 추론 노드
+│   │       │   └── leap_hand_policy/    # SB3 SAC 모델 로드 및 추론 노드
+│   │       ├── models/                  # 학습 완료된 .zip 정책 파일 (LFS)
+│   │       ├── launch/
+│   │       └── package.xml / setup.py
 │   │
-│   ├── custom_hand_control/           # Custom Hand 텐던 구동 제어 인터페이스
-│   ├── leap_hand_control/             # LEAP Hand 직구동 제어 인터페이스
+│   ├── control/
+│   │   ├── custom_hand_control/       # Custom Hand 텐던 구동 제어 인터페이스
+│   │   └── leap_hand_control/         # LEAP Hand 직구동 제어 인터페이스
+│   │
 │   ├── system_interfaces/             # 커스텀 msg/srv/action (미확정, 추후 채움)
 │   └── system_bringup/                # 전체 시스템 통합 launch/파라미터
 │
