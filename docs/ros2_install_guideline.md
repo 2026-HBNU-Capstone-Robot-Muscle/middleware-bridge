@@ -148,6 +148,52 @@ ros2 topic list
 
 정상적으로 명령이 동작하면 설치 완료입니다.
 
+#### 환경 변수 확인
+
+- input:
+```bash
+source /opt/ros/humble/setup.bash
+# ROS2 환경 변수가 정상적으로 설정되었는지 확인합니다.
+printenv | grep ROS
+```
+- output
+```bash
+ROS_VERSION=2
+ROS_PYTHON_VERSION=3
+ROS_LOCALHOST_ONLY=0
+ROS_DISTRO=humble
+```
+
+#### ros2 doctor로 종합 진단
+
+- input:
+```bash
+ros2 doctor --report
+```
+- output: 설치 상태, 네트워크, 플랫폼 등 종합적인 정보 출력
+- 오류가 없다면 설치상 큰 문제는 없는 것
+
+### talker-listener 통신 테스트 (노드 간 통신 테스트)
+
+- input:
+```bash
+# 새로운 터미널을 연다
+source /opt/ros/humble/setup.bash
+ros2 run demo_nodes_py talker
+
+# 또 다른 새 터미널을 열고 실행
+source /opt/ros/humble/setup.bash
+ros2 run demo_nodes_py listener
+```
+- output:
+```bash
+[INFO] [1758845468.261510285] [listener]: Waiting for message...
+[INFO] [1758845469.264088541] [listener]: Received: 'Hello World: 1' from topic /chatter
+[INFO] [1758845470.265728064] [listener]: Received: 'Hello World: 2' from topic /chatter
+[INFO] [1758845471.265277577] [listener]: Received: 'Hello World: 3' from topic /chatter
+```
+- 정상적으로 talker-listener 통신이 이루어지는 것 확인
+
 ---
 
 ## 6. colcon 빌드 도구 설치
