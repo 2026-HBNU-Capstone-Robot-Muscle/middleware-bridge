@@ -16,6 +16,8 @@
 | ROS2 배포판 | Humble |
 | Python 가상환경 | conda 또는 venv (역할 분리형 전략, 3장 참고) |
 
+> 캡스톤디자인 중간보고서 토대로 ROS2는 안정적이고 많은 자료가 있는 ROS2 Humble을 채택
+
 ---
 
 ## 1. WSL2 및 Ubuntu 22.04 설치
