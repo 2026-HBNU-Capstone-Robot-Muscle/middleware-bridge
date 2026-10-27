@@ -1,0 +1,15 @@
+[workspace]
+name = "middleware-bridge"
+channels = ["https://prefix.dev/robostack-humble"]
+platforms = ["win-64"]
+version = "0.1.0"
+
+[dependencies]
+ros-humble-desktop = ">=0.10.0,<0.11"
+ros-dev-tools = ">=1.0.3,<2"
+ros-humble-rosbridge-suite = ">=2.0.8,<3"
+
+[tasks]
+list-packages = "colcon list --base-paths src"
+build-windows = "colcon --log-base .colcon-win/log build --executor sequential --merge-install --base-paths src --build-base .colcon-win/build --install-base .colcon-win/install"
+rosbridge = "python scripts/windows/run_rosbridge.py"
