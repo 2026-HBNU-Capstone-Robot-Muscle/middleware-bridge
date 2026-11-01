@@ -11,11 +11,11 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'rubik-solver-py==0.1.1'],
     zip_safe=True,
     maintainer='jeonjihwan',
     maintainer_email='jeonjihwan@todo.todo',
-    description='TODO: Package description',
+    description='Kociemba cube-solving ROS 2 service',
     license='TODO: License declaration',
     extras_require={
         'test': [
@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'cube_solver = cube_solver.solver_node:main',
         ],
     },
 )

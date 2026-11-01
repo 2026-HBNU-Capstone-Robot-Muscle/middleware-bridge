@@ -10,12 +10,13 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/model', ['model/cube-detector.pt']),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'ultralytics>=8.0,<9'],
     zip_safe=True,
     maintainer='jeonjihwan',
     maintainer_email='jeonjihwan@todo.todo',
-    description='TODO: Package description',
+    description='YOLO OBB cube-face perception node',
     license='TODO: License declaration',
     extras_require={
         'test': [
@@ -24,6 +25,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'cube_detector = cube_detection.detector_node:main',
         ],
     },
 )

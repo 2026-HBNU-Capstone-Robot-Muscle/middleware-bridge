@@ -37,7 +37,7 @@ future==1.0.0
 geometry-msgs==4.9.2
 image-geometry==3.2.1
 interactive-markers==2.3.2
-kociemba==1.2.1
+rubik-solver-py==0.1.1
 laser-geometry==2.4.1
 launch==1.0.15
 launch-ros==0.19.14

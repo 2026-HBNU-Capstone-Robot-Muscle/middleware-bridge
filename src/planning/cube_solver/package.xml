@@ -3,9 +3,12 @@
 <package format="3">
   <name>cube_solver</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Kociemba cube-solving ROS 2 service</description>
   <maintainer email="jeonjihwan@todo.todo">jeonjihwan</maintainer>
   <license>TODO: License declaration</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>system_interfaces</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

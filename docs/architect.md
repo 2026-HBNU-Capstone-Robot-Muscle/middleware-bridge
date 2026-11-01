@@ -33,10 +33,19 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 │   │   └── leap_hand_control/        # LEAP Hand 제어 패키지 기본 구조
 │   ├── perception/
 │   │   ├── README.md
-│   │   └── cube_detection/           # 큐브 감지 패키지 기본 구조
+│   │   └── cube_detection/
+│   │       ├── cube_detection/detector_node.py # 이미지 구독·YOLO OBB 검출 노드
+│   │       ├── model/
+│   │       │   ├── cube-detector.pt   # 파인튜닝 YOLO 가중치
+│   │       │   └── .gitkeep
+│   │       ├── package.xml
+│   │       └── setup.py              # cube_detector 실행 진입점
 │   ├── planning/
 │   │   ├── README.md
-│   │   └── cube_solver/              # 큐브 풀이 패키지 기본 구조
+│   │   └── cube_solver/
+│   │       ├── cube_solver/solver_node.py # Kociemba 풀이 서비스 노드
+│   │       ├── package.xml
+│   │       └── setup.py              # cube_solver 실행 진입점
 │   ├── policy/
 │   │   ├── README.md
 │   │   └── rl_policy/                # 강화학습 정책 패키지 기본 구조
@@ -63,6 +72,8 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 - 사용자가 실제 Tauri 창에서 rosbridge 연결, ROS 토픽, 서비스 통신 검증을 완료했습니다. 앞선 PowerShell WebSocket 검사에 더해 WebView 경로도 확인된 상태입니다.
 - `src/system_interfaces`에 `FaceDetection`, `FaceDetectionArray`, `CubeState` 메시지와 `SolveCube` 서비스를 추가했습니다. 좌표는 입력 이미지 픽셀 기준이고, 큐브 facelets는 Kociemba URFDLB 54자 형식을 사용합니다. 손 제어 인터페이스는 실제 드라이버·관절 사양이 정해지지 않아 포함하지 않았습니다.
 - Windows에서 Visual Studio 2026의 `v145` 도구 집합과 Pixi Python 개발 파일을 지정해 CMake 구성, 전체 ROSIDL 타깃 빌드, 설치를 확인했습니다. 설치된 인터페이스는 `ros2 interface show`로 조회했습니다. 표준 `colcon build` 실행 경로는 아직 확인되지 않았습니다.
+- `cube_detection`은 `sensor_msgs/msg/Image`를 `/camera/image_raw`에서 받아 `/cube/face_detections`로 OBB 결과를 발행합니다. `model/cube-detector.pt`가 패키지 모델 경로에 포함되며 `model_path`, `confidence_threshold`, `device`, 토픽 이름을 매개변수로 설정할 수 있습니다. 기본 추론 장치는 CPU, 기본 confidence 임계값은 0.5입니다. 번들 모델로 참고 디렉토리의 1280×720 샘플 이미지를 처리해 `side` 검출 1개, confidence 0.947 및 꼭짓점 4개가 포함된 ROS 메시지를 확인했습니다.
+- `cube_solver`는 `/cube/solve` 서비스를 제공하며 54자 URFDLB 입력, 허용 문자와 면별 9개 개수를 확인한 뒤 `rubik-solver-py==0.1.1`의 Kociemba Two-Phase solver를 호출합니다. 응답에는 성공 여부, 토큰 배열, 실패 사유를 기록합니다. ROS 노드 시작과 서비스 광고, solver 콜백을 확인했고 한 번 회전한 큐브에 반환한 토큰을 적용해 풀이되는 것까지 확인했습니다. 별도 프로세스에서 ROS CLI 서비스 요청을 왕복하는 검증은 Fast DDS 공유 메모리 권한 오류로 완료되지 않았습니다.
 
 ### `system_interfaces` 메시지·서비스
 
@@ -75,15 +86,15 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 | `CubeState.msg` | `header: std_msgs/Header`, `facelets: string`, `valid: bool`, `observed_faces: string[]`, `validation_errors: string[]` | 유효한 상태의 `facelets`는 Kociemba URFDLB 면 순서의 54자입니다. 물리 상태 검증을 통과하지 못했거나 미완성이면 `valid=false`이고 `facelets`는 빈 문자열입니다. `observed_faces`는 중복 없는 `U`, `R`, `F`, `D`, `L`, `B` 목록입니다. |
 | `SolveCube.srv` | 요청 `facelets: string`; 응답 `success: bool`, `moves: string[]`, `error_message: string` | 큐브 상태를 받아 풀이를 반환합니다. 이동은 `R`, `U'`, `F2`와 같은 토큰이며 성공 여부와 오류 메시지를 별도 필드로 전달합니다. |
 
-이 패키지에는 인터페이스 타입 정의만 존재합니다. 카메라 구독, YOLO 추론, 색상 판별, 큐브 상태 생성, 풀이 서비스 서버를 구현하거나 위 타입과 연결한 ROS 노드는 아직 없습니다. 카메라 모델·해상도와 손 하드웨어 세부사항도 이 타입들에 고정하지 않았습니다.
+`cube_detection`은 영상 구독과 OBB 검출을, `cube_solver`는 풀이 서비스를 구현합니다. 색상 분류, 6면 캡처, `CubeState` 생성 노드는 아직 구현되지 않아 감지 결과에서 풀이 입력으로 이어지는 전체 자동 흐름은 연결되지 않았습니다. 카메라 모델·해상도와 손 하드웨어 세부사항도 타입에 고정하지 않았습니다.
 
 ## 확보 모델 및 입출력 조사
 
-세 참조 디렉토리는 읽기 전용으로 확인했으며, 파일 복사나 모델 추론은 하지 않았습니다. 체크포인트의 해시·크기·직렬화 메타데이터와 배포 코드를 정적으로 확인한 결과입니다. `middleware-bridge` 안의 `src/perception/cube_detection/model` 및 `src/policy/rl_policy/models`에는 현재 `.gitkeep`만 있고 실제 가중치가 없습니다.
+세 참조 디렉토리의 소스는 읽기 전용으로 확인했습니다. YOLO 체크포인트는 사용자가 별도 Git 저장소의 모델을 프로젝트에 포함하라고 요청해 `src/perception/cube_detection/model/cube-detector.pt`로 복사했으며, 원본과 SHA-256이 일치합니다. Custom Hand와 LEAP Hand 가중치는 `middleware-bridge`에 포함되어 있지 않습니다. 모델 분석은 체크포인트 메타데이터와 참고 배포 코드에 근거합니다.
 
 ### 큐브 YOLO 모델 (`cube_3D_conversion`)
 
-- `cube-detector.pt`는 약 5.9 MB인 Ultralytics YOLO OBB 체크포인트입니다. 참고 코드가 사용하는 클래스는 `side`이며 프레임에서 큐브 면의 사각형 네 꼭짓점, 중심, 신뢰도를 얻습니다. 모델 입력 크기는 코드에서 직접 지정하지 않아 라이브러리 기본값에 따릅니다.
+- `cube-detector.pt`는 약 5.9 MB인 Ultralytics YOLO OBB 체크포인트이며 `cube_detection` 패키지 설치 자료로 포함됩니다. 참고 코드가 사용하는 클래스는 `side`이며 프레임에서 큐브 면의 사각형 네 꼭짓점, 중심, 신뢰도를 얻습니다. 모델 입력 크기는 코드에서 직접 지정하지 않아 라이브러리 기본값에 따릅니다.
 - 이 모델은 스티커 색상 분류나 3D 큐브 자세 추정, 큐브 풀이를 하지 않습니다. 참고 파이프라인은 검출된 면을 원근 보정하고 3×3 스티커의 BGR 색을 추출한 다음, 여섯 면을 모아 검증된 54칸 큐브 상태를 구성합니다. 이후 Kociemba URFDLB 문자열로 바꾸고 풀이 결과를 생성·검증해 `cube_state.json`, `solution.json`으로 저장합니다.
 - 따라서 ROS 데이터 흐름에서는 이미지 입력, OBB 검출 결과, 완성된 큐브 상태, 풀이 결과가 서로 다른 단계입니다. 카메라 해상도·모델 입력 크기·캡처 시퀀스는 아직 본 프로젝트에 확정되지 않았습니다.
 
@@ -101,9 +112,10 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 
 참고용 디렉토리 `cube_3D_conversion`, `left-rl-with-mujoco`,
 `right_rl_with_mujoco`는 이 프로젝트 트리 외부에 있으며 빌드 입력으로
-사용하지 않습니다. 실제 가중치도 현재 `middleware-bridge`에는 포함되어 있지
-않습니다. 참조 코드에서 파악한 입력·출력은 통합 계약의 근거로 사용할 수 있지만,
-실제 ROS 노드 연결 및 Windows 추론 동작은 아직 검증되지 않았습니다.
+사용하지 않습니다. YOLO 체크포인트는 `middleware-bridge` 안에 복사되어 있고,
+Custom Hand와 LEAP Hand 가중치는 참조 디렉토리에만 있습니다. ROS 이미지 메시지를
+YOLO 노드에 전달한 샘플 검증은 완료했으며, 실제 카메라와 6면 색상 상태 조립은
+검증되지 않았습니다.
 
 Pixi와 colcon 출력은 로컬에서 생성됩니다. `.pixi/`, `.colcon-win/`,
 `install/`, `log/`는 Git 추적 대상에서 제외되며, Windows 빌드 출력 위치는
