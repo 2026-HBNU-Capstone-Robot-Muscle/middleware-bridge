@@ -58,4 +58,4 @@ cargo tauri dev
 - `scripts/build.ps1`로 Tauri 정적 프론트엔드를 생성합니다. 별도 Node.js나 npm은 필요하지 않습니다.
 - 저장소 루트에서 `powershell -ExecutionPolicy Bypass -File .\scripts\windows\test_rosbridge_ws.ps1`을 실행하면 rosbridge 연결, `/chatter` 수신·발행, `/add_two_ints` 서비스 호출을 확인합니다.
 - Rust/Cargo와 Tauri CLI는 사용자 Cargo 경로에 설치되어 있고, `cargo tauri dev` 빌드와 진단 화면 렌더링을 확인했습니다. PowerShell에서 `cargo`가 인식되지 않으면 새 PowerShell을 열어 보세요.
-- 토픽·서비스 왕복은 별도 PowerShell WebSocket 스크립트로 확인했지만, Tauri 창에서 Connect·구독·서비스 버튼을 눌러 WebView 내부 통신까지 확인하는 작업은 남아 있습니다.
+- 사용자가 실제 Tauri 창에서 rosbridge 연결, ROS 토픽 및 서비스 통신 검증을 완료했습니다.

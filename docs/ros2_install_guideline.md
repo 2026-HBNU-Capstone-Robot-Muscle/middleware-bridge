@@ -126,7 +126,7 @@ PowerShell에서 Tauri 창과 분리해 rosbridge 프로토콜 경로를 재현�
 powershell -ExecutionPolicy Bypass -File .\scripts\windows\test_rosbridge_ws.ps1
 ```
 
-이 스크립트는 rosbridge WebSocket 연결, `/chatter` talker 수신, 같은 토픽으로 발행한 문자열의 왕복 수신, `17 + 25 = 42` 서비스 응답을 확인합니다. Node.js를 설치할 필요가 없습니다. 다만 이 검증만으로 Tauri WebView의 실제 기원(origin) 정책과 화면 내부 연결까지 입증되지는 않습니다.
+이 스크립트는 rosbridge WebSocket 연결, `/chatter` talker 수신, 같은 토픽으로 발행한 문자열의 왕복 수신, `17 + 25 = 42` 서비스 응답을 확인합니다. Node.js를 설치할 필요가 없습니다. 별도로 Tauri 창에서 연결·토픽·서비스를 수동 검증했습니다.
 
 ## 남은 검증
 

@@ -43,7 +43,7 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 │   └── system_interfaces/            # 사용자 정의 ROS 인터페이스 패키지 (세부 내용 미정)
 └── log/                              # 현재 남아 있는 이전 colcon 로그
 
-## 현재 단계: Tauri와 rosbridge 통신 경로 준비
+## 현재 단계: Tauri와 rosbridge 연결 검증 완료
 
 - `apps/monitoring_ui`에 Tauri 2 Rust 앱 틀과 정적 HTML/CSS/JavaScript 진단 화면을 추가했습니다. `src`는 ROS 저장소 루트, UI JavaScript, Tauri Rust 코드 각각의 소스 폴더이므로 서로 다른 앱의 영역입니다.
 - UI의 WebSocket 주소 기본값은 `ws://127.0.0.1:9090`이며, `/chatter` (`std_msgs/msg/String`) 구독·발행과 `/add_two_ints` (`example_interfaces/srv/AddTwoInts`) 호출 기능을 제공합니다.
@@ -51,7 +51,17 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 - rosbridge WebSocket 연결, talker의 `/chatter` 메시지 수신, 발행 메시지 왕복, `17 + 25 = 42` 서비스 응답을 확인했습니다. 이전에는 Node 기반 스크립트로, 현재는 `scripts/windows/test_rosbridge_ws.ps1`로 같은 검증을 통과했습니다. ROS 예제는 `demo_nodes_py talker`와 `demo_nodes_cpp add_two_ints_server`를 사용했습니다.
 - Windows 개발 도구 확인 결과 Visual Studio 2026 C++ 빌드 구성 요소와 WebView2가 있고, Rust/Cargo 및 Tauri CLI는 `C:\Users\jeonj\.cargo\bin`에 설치되어 있습니다. PowerShell에서 `cargo`가 바로 인식되지 않으면 새 창을 열거나 Cargo 실행 파일의 전체 경로를 사용합니다.
 - Tauri 빌드가 요구하는 `src-tauri/icons/icon.ico`를 추가했고 `cargo tauri dev` 빌드를 통과했습니다. Tauri WebView에서 한국어 진단 화면이 렌더링되는 것을 확인했습니다. 개발 창은 CLI가 제공하는 로컬 정적 서버를 사용하므로 `target/debug` 실행 파일을 따로 열지 말고 `cargo tauri dev`로 실행해야 합니다.
-- 실제 Tauri 창에서 Connect를 눌러 ROS 토픽·서비스를 주고받는 검증은 아직 완료되지 않았습니다. 이전에 별도 PowerShell WebSocket 클라이언트로 토픽과 서비스를 확인했지만, 이는 Tauri WebView 검증을 대신하지 않습니다.
+- 사용자가 실제 Tauri 창에서 rosbridge 연결, ROS 토픽, 서비스 통신 검증을 완료했습니다. 앞선 PowerShell WebSocket 검사에 더해 WebView 경로도 확인된 상태입니다.
+
+## 다음 단계 제안: ROS 인터페이스 계약 정의
+
+`src/system_interfaces`에는 아직 사용자 정의 메시지·서비스가 없습니다. 다음에는 카메라 및 손 하드웨어 세부 정보가 확정되지 않은 상태를 유지하면서, 현재 시스템의 데이터 흐름에 필요한 최소 인터페이스를 정의하는 것이 우선입니다.
+
+- 큐브 감지 결과가 표현할 상태와 유효성 정보를 정의합니다.
+- 큐브 풀이 요청 및 풀이 단계 결과의 형식을 정의합니다.
+- 손 제어 요청, 실행 상태, 실패 응답의 공통 형식을 정의합니다.
+- 확보된 YOLO·손 모델과 solver의 실제 입력·출력 형식은 참고 자료를 조사해 맞춥니다. 미확정 카메라·LEAP Hand 정보는 인터페이스에 고정값으로 넣지 않습니다.
+- 인터페이스가 합의되면 `system_interfaces`에 ROS 2 `.msg`/`.srv`를 추가하고, perception·planning·control 패키지와 Tauri UI가 동일한 계약을 사용하도록 연결합니다.
 
 참고용 디렉토리 `cube_3D_conversion`, `left-rl-with-mujoco`,
 `right_rl_with_mujoco`는 이 프로젝트 트리 외부에 있으며 빌드 입력으로
