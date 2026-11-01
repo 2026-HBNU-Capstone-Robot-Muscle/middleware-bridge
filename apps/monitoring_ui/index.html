@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101820" />
+    <title>ROS 2 연결 점검</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./src/main.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">MIDDLEWARE BRIDGE</p>
+          <h1>ROS 2 연결 점검</h1>
+        </div>
+        <span id="connection-state" class="state" data-state="offline">연결 안 됨</span>
+      </header>
+
+      <section class="panel connection-panel" aria-labelledby="connection-title">
+        <div class="section-heading">
+          <div>
+            <p class="step">01 / 연결</p>
+            <h2 id="connection-title">rosbridge WebSocket</h2>
+          </div>
+        </div>
+        <form id="connection-form" class="connection-form">
+          <label for="ws-url">주소</label>
+          <input id="ws-url" name="url" type="url" value="ws://127.0.0.1:9090" spellcheck="false" />
+          <button id="connect-button" class="button button-primary" type="submit">연결</button>
+        </form>
+        <p id="connection-detail" class="muted" aria-live="polite">rosbridge를 실행한 뒤 연결하세요.</p>
+      </section>
+
+      <div class="grid">
+        <section class="panel" aria-labelledby="topic-title">
+          <div class="section-heading">
+            <div>
+              <p class="step">02 / 토픽</p>
+              <h2 id="topic-title">구독 및 발행</h2>
+            </div>
+          </div>
+          <form id="subscribe-form" class="stack">
+            <label for="topic-name">토픽 이름</label>
+            <input id="topic-name" value="/chatter" spellcheck="false" />
+            <label for="topic-type">메시지 형식</label>
+            <input id="topic-type" value="std_msgs/msg/String" spellcheck="false" />
+            <button class="button button-secondary" type="submit">토픽 구독</button>
+          </form>
+          <div class="publish-row">
+            <label for="publish-data">문자열 발행</label>
+            <div class="inline-fields">
+              <input id="publish-data" value="Tauri ROS 2 연결 확인" />
+              <button id="publish-button" class="button button-secondary" type="button">발행</button>
+            </div>
+          </div>
+          <div id="topic-messages" class="message-list" aria-live="polite">
+            <p class="empty-state">아직 수신한 메시지가 없습니다.</p>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="service-title">
+          <div class="section-heading">
+            <div>
+              <p class="step">03 / 서비스</p>
+              <h2 id="service-title">정수 덧셈 서비스</h2>
+            </div>
+          </div>
+          <form id="service-form" class="stack">
+            <label for="service-name">서비스 이름</label>
+            <input id="service-name" value="/add_two_ints" spellcheck="false" />
+            <label for="service-type">서비스 형식</label>
+            <input id="service-type" value="example_interfaces/srv/AddTwoInts" spellcheck="false" />
+            <div class="number-fields">
+              <div>
+                <label for="service-a">a</label>
+                <input id="service-a" type="number" value="17" />
+              </div>
+              <div>
+                <label for="service-b">b</label>
+                <input id="service-b" type="number" value="25" />
+              </div>
+            </div>
+            <button class="button button-primary" type="submit">서비스 호출</button>
+          </form>
+          <div id="service-result" class="result-box" aria-live="polite">서비스 응답이 여기에 표시됩니다.</div>
+        </section>
+      </div>
+
+      <footer class="panel log-panel">
+        <div class="section-heading">
+          <div>
+            <p class="step">기록</p>
+            <h2>연결 이벤트</h2>
+          </div>
+          <button id="clear-log" class="button button-quiet" type="button">기록 지우기</button>
+        </div>
+        <ol id="event-log" class="event-log" aria-live="polite"></ol>
+      </footer>
+    </main>
+  </body>
+</html>

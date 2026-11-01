@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Middleware Bridge ROS 2 Check",
+  "version": "0.1.0",
+  "identifier": "dev.middlewarebridge.ros2check",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "ROS 2 연결 점검",
+        "width": 1120,
+        "height": 850,
+        "minWidth": 720,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self'; script-src 'self'; connect-src ws://127.0.0.1:9090 ws://localhost:9090; img-src 'self' asset: http://asset.localhost data:"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all"
+  }
+}

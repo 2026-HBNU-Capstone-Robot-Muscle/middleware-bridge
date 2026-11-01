@@ -89,9 +89,47 @@ WebSocket 클라이언트가 `ws://127.0.0.1:9090`에 연결하고 다음 JSON�
 
 정상 연결 시 `{"op":"publish","topic":"/chatter","msg":{"data":"Hello World: ..."}}` 형식의 메시지가 수신됩니다.
 
-## 이후 검증
+## Tauri 진단 UI와 rosbridge 통신 확인
 
-- Tauri WebSocket 플러그인으로 rosbridge 연결 및 ROS 토픽/서비스 통신
+`apps/monitoring_ui`에는 Tauri 2 진단 화면과 정적 프론트엔드가 있습니다. 이 UI는 Tauri WebView의 기본 WebSocket API로 rosbridge에 직접 연결합니다. Windows C++ 빌드 도구, WebView2, Rust 및 Tauri CLI가 준비된 환경에서 저장소 루트의 PowerShell 창 두 개와 UI 실행용 창 하나를 사용합니다.
+
+창 A — rosbridge 서버:
+
+```powershell
+pixi run rosbridge
+```
+
+창 B — 토픽 발행 노드와 서비스 서버:
+
+```powershell
+pixi run ros2 run demo_nodes_py talker
+```
+
+```powershell
+pixi run ros2 run demo_nodes_cpp add_two_ints_server
+```
+
+창 C — Tauri 정적 UI 빌드 및 실행:
+
+```powershell
+cd apps/monitoring_ui
+node scripts/build.mjs
+cd src-tauri
+cargo tauri dev
+```
+
+UI에서 `ws://127.0.0.1:9090`에 연결하고 `/chatter` (`std_msgs/msg/String`)를 구독·발행합니다. `/add_two_ints` (`example_interfaces/srv/AddTwoInts`) 서비스에 숫자를 보내고 응답을 확인합니다. Tauri CSP는 loopback WebSocket 주소만 허용합니다.
+
+PowerShell에서 Tauri 창과 분리해 rosbridge 프로토콜 경로를 재현하려면 다음 명령을 사용합니다.
+
+```powershell
+node scripts/windows/test_rosbridge_ws.mjs
+```
+
+이 스크립트는 rosbridge WebSocket 연결, `/chatter` talker 수신, 같은 토픽으로 발행한 문자열의 왕복 수신, `17 + 25 = 42` 서비스 응답을 확인합니다. 다만 이 검증만으로 Tauri WebView의 실제 기원(origin) 정책과 화면 내부 연결까지 입증되지는 않습니다.
+
+## 남은 검증
+
 - YOLO, Stable-Baselines3, PyTorch와 실제 모델 파일의 Windows 추론 호환성
 - 실제 Dynamixel 및 Feetech 장치 연결과 안전 동작
 
