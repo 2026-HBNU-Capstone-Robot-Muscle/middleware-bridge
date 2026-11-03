@@ -13,6 +13,7 @@ find_package(std_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FaceDetection.msg"
   "msg/FaceDetectionArray.msg"
+  "msg/FaceCaptureLabel.msg"
   "msg/CubeState.msg"
   "srv/SolveCube.srv"
   DEPENDENCIES geometry_msgs std_msgs

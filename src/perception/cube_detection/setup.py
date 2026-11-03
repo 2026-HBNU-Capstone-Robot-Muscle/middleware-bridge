@@ -26,6 +26,8 @@ setup(
     entry_points={
         'console_scripts': [
             'cube_detector = cube_detection.detector_node:main',
+            'cube_state_assembler = cube_detection.state_assembler_node:main',
+            'cube_offline_replay = cube_detection.offline_replay_node:main',
         ],
     },
 )

@@ -35,6 +35,9 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 │   │   ├── README.md
 │   │   └── cube_detection/
 │   │       ├── cube_detection/detector_node.py # 이미지 구독·YOLO OBB 검출 노드
+│   │       ├── cube_detection/cube_state.py # 면 원근 보정·색 분류·상태 검증
+│   │       ├── cube_detection/state_assembler_node.py # 6면 상태 조립 및 solver 요청
+│   │       ├── cube_detection/offline_replay_node.py # 저장된 면 이미지 ROS 재생
 │   │       ├── model/
 │   │       │   ├── cube-detector.pt   # 파인튜닝 YOLO 가중치
 │   │       │   └── .gitkeep
@@ -56,12 +59,13 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 │       ├── msg/
 │       │   ├── FaceDetection.msg     # 큐브 면 OBB 검출 결과
 │       │   ├── FaceDetectionArray.msg # 이미지 단위 검출 결과 배열
+│       │   ├── FaceCaptureLabel.msg # 이미지와 동기화된 스캔 면 라벨
 │       │   └── CubeState.msg         # URFDLB 큐브 상태 및 검증 결과
 │       └── srv/
 │           └── SolveCube.srv         # 큐브 풀이 요청·응답
 └── log/                              # 현재 남아 있는 이전 colcon 로그
 
-## 현재 상태: Tauri 연결 검증 및 큐브 ROS 인터페이스 구현
+## 현재 상태: Tauri 연결 검증 및 큐브 인식·풀이 연동 구현
 
 - `apps/monitoring_ui`에 Tauri 2 Rust 앱 틀과 정적 HTML/CSS/JavaScript 진단 화면을 추가했습니다. `src`는 ROS 저장소 루트, UI JavaScript, Tauri Rust 코드 각각의 소스 폴더이므로 서로 다른 앱의 영역입니다.
 - UI의 WebSocket 주소 기본값은 `ws://127.0.0.1:9090`이며, `/chatter` (`std_msgs/msg/String`) 구독·발행과 `/add_two_ints` (`example_interfaces/srv/AddTwoInts`) 호출 기능을 제공합니다.
@@ -73,7 +77,11 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 - `src/system_interfaces`에 `FaceDetection`, `FaceDetectionArray`, `CubeState` 메시지와 `SolveCube` 서비스를 추가했습니다. 좌표는 입력 이미지 픽셀 기준이고, 큐브 facelets는 Kociemba URFDLB 54자 형식을 사용합니다. 손 제어 인터페이스는 실제 드라이버·관절 사양이 정해지지 않아 포함하지 않았습니다.
 - Windows에서 Visual Studio 2026의 `v145` 도구 집합과 Pixi Python 개발 파일을 지정해 CMake 구성, 전체 ROSIDL 타깃 빌드, 설치를 확인했습니다. 설치된 인터페이스는 `ros2 interface show`로 조회했습니다. 표준 `colcon build` 실행 경로는 아직 확인되지 않았습니다.
 - `cube_detection`은 `sensor_msgs/msg/Image`를 `/camera/image_raw`에서 받아 `/cube/face_detections`로 OBB 결과를 발행합니다. `model/cube-detector.pt`가 패키지 모델 경로에 포함되며 `model_path`, `confidence_threshold`, `device`, 토픽 이름을 매개변수로 설정할 수 있습니다. 기본 추론 장치는 CPU, 기본 confidence 임계값은 0.5입니다. 번들 모델로 참고 디렉토리의 1280×720 샘플 이미지를 처리해 `side` 검출 1개, confidence 0.947 및 꼭짓점 4개가 포함된 ROS 메시지를 확인했습니다.
-- `cube_solver`는 `/cube/solve` 서비스를 제공하며 54자 URFDLB 입력, 허용 문자와 면별 9개 개수를 확인한 뒤 `rubik-solver-py==0.1.1`의 Kociemba Two-Phase solver를 호출합니다. 응답에는 성공 여부, 토큰 배열, 실패 사유를 기록합니다. ROS 노드 시작과 서비스 광고, solver 콜백을 확인했고 한 번 회전한 큐브에 반환한 토큰을 적용해 풀이되는 것까지 확인했습니다. 별도 프로세스에서 ROS CLI 서비스 요청을 왕복하는 검증은 Fast DDS 공유 메모리 권한 오류로 완료되지 않았습니다.
+- `cube_solver`는 `/cube/solve` 서비스를 제공하며 54자 URFDLB 입력, 허용 문자와 면별 9개 개수를 확인한 뒤 `rubik-solver-py==0.1.1`의 Kociemba Two-Phase solver를 호출합니다. 응답에는 성공 여부, 토큰 배열, 실패 사유를 기록합니다. 한 번 회전한 큐브를 푸는 콜백 확인과 assembler 노드에서 실제 서비스 호출을 보내 20수 해법을 받는 통합 검증을 완료했습니다.
+- `cube_state_assembler`는 이미지·OBB 결과·면 라벨을 ROS timestamp로 짝지어 면을 원근 보정하고 각 스티커 중앙부의 중앙값 BGR을 샘플링합니다. `F, R, B, L, U, D` 중심 스티커를 Lab 기준색으로 사용해 54개 스티커를 분류하고, 색상 개수·면 중앙값·Kociemba 물리 상태를 검증합니다. 유효할 때 `/cube/state`를 발행한 뒤 `/cube/solve` 서비스를 호출합니다.
+- `cube_offline_replay`는 시작 후 5초 대기하고 `cube_3D_conversion/captures/{F,R,B,L,U,D}/original.png`를 `/camera/image_raw`와 `/cube/scan/face_label`에 3초 간격으로 두 차례 재생합니다. assembler는 면별 중복 프레임을 무시하고 첫 검출 실패 시 다음 프레임을 재시도합니다. 12초 동안 입력이 없고 6면을 채우지 못하면 불완전 상태를 발행합니다. 참조 디렉토리는 읽기 전용이며, 이 재생은 실제 카메라 검증을 대체하지 않습니다.
+- 6개 샘플 이미지에 번들 YOLO 모델을 각각 실행하고, 조립된 54자 상태가 참조 `cube_state.json`에서 생성한 URFDLB 문자열과 일치하는 것을 확인했습니다. Kociemba 물리 상태 검증도 통과했습니다. Windows 전체 colcon 빌드와 Python 문법 컴파일, `git diff --check`가 통과했습니다.
+- ROS 노드 간 재생 검증 초기에 첫 `F` 프레임이 수신되지 않는 경우를 확인해 재생 시작 전 대기와 두 차례 재생을 적용하고, assembler가 면 중복을 무시하며 실패 입력을 재시도하도록 했습니다. 수정 후 ROS 검증에서 여섯 면 모두 검출·조립됐고, 참조 `cube_state.json`과 같은 54자 URFDLB 상태를 `/cube/state`로 발행했습니다. `/cube/solve` 응답에서 20수 해법을 받았습니다. 검증에 사용한 네 노드는 모두 종료했습니다.
 
 ### `system_interfaces` 메시지·서비스
 
@@ -83,10 +91,11 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 |---|---|---|
 | `FaceDetection.msg` | `class_name: string`, `confidence: float32`, `corners_px: geometry_msgs/Point32[4]`, `center_px: geometry_msgs/Point32` | 한 이미지에서 찾은 큐브 면 OBB. 좌표는 입력 이미지 좌상단 원점의 픽셀 단위이며 `z=0`. 꼭짓점 네 점은 검출기 순서의 다각형 순환 순서입니다. |
 | `FaceDetectionArray.msg` | `header: std_msgs/Header`, `detections: FaceDetection[]` | 하나의 원본 이미지에 대응하는 검출 결과 배열. |
+| `FaceCaptureLabel.msg` | `header: std_msgs/Header`, `face_name: string` | `F`, `R`, `B`, `L`, `U`, `D` 중 한 면 라벨. 해당 이미지와 검출 결과를 timestamp로 연결합니다. |
 | `CubeState.msg` | `header: std_msgs/Header`, `facelets: string`, `valid: bool`, `observed_faces: string[]`, `validation_errors: string[]` | 유효한 상태의 `facelets`는 Kociemba URFDLB 면 순서의 54자입니다. 물리 상태 검증을 통과하지 못했거나 미완성이면 `valid=false`이고 `facelets`는 빈 문자열입니다. `observed_faces`는 중복 없는 `U`, `R`, `F`, `D`, `L`, `B` 목록입니다. |
 | `SolveCube.srv` | 요청 `facelets: string`; 응답 `success: bool`, `moves: string[]`, `error_message: string` | 큐브 상태를 받아 풀이를 반환합니다. 이동은 `R`, `U'`, `F2`와 같은 토큰이며 성공 여부와 오류 메시지를 별도 필드로 전달합니다. |
 
-`cube_detection`은 영상 구독과 OBB 검출을, `cube_solver`는 풀이 서비스를 구현합니다. 색상 분류, 6면 캡처, `CubeState` 생성 노드는 아직 구현되지 않아 감지 결과에서 풀이 입력으로 이어지는 전체 자동 흐름은 연결되지 않았습니다. 카메라 모델·해상도와 손 하드웨어 세부사항도 타입에 고정하지 않았습니다.
+`cube_detection`은 영상 구독·OBB 검출, 6면 색상 분류 및 `CubeState` 생성을 구현합니다. 저장된 샘플 이미지에서 ROS 토픽과 solver 서비스까지 이어지는 오프라인 경로가 추가되었습니다. 카메라 모델·해상도와 손 하드웨어 세부사항은 타입에 고정하지 않았습니다.
 
 ## 확보 모델 및 입출력 조사
 

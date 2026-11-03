@@ -1,5 +1,6 @@
 """ROS 2 image subscriber that publishes YOLO OBB cube-face detections."""
 
+import os
 from pathlib import Path
 
 import rclpy
@@ -37,6 +38,11 @@ class CubeDetectorNode(Node):
             raise ValueError(f'YOLO checkpoint does not exist: {model_path}')
 
         try:
+            config_directory = Path.cwd() / 'log' / 'ultralytics'
+            config_directory.mkdir(parents=True, exist_ok=True)
+            os.environ.setdefault(
+                'YOLO_CONFIG_DIR', str(config_directory)
+            )
             from ultralytics import YOLO
         except ImportError as exc:
             raise RuntimeError(
