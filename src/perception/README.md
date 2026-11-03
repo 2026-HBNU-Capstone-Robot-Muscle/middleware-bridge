@@ -9,6 +9,11 @@ YOLO OBB 큐브 면 검출 결과를 `/cube/face_detections`
 지정할 수 있습니다. 카메라 토픽, 출력 토픽, confidence 임계값, 추론 장치도
 ROS 매개변수로 설정합니다.
 
+## YOLO 검출기 단독 확인 (진단용)
+
+아래 명령은 YOLO 노드만 따로 확인할 때 사용합니다. 실시간 카메라 실험에서는 아래
+3개 명령을 별도 실행하지 말고, 뒤의 `카메라 검증 절차`에 나온 3개 셸 구성을 따릅니다.
+
 ```powershell
 cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
 pixi run build-windows
@@ -33,9 +38,16 @@ ros2 run cube_detection cube_detector
 
 최근접 중심색 분류 결과가 색상별 9개 규칙에 맞지 않으면, 중심 스티커를 제외한
 스티커 중 Lab 거리 차이가 설정 한도 안인 경우에만 색상별 개수를 맞춰봅니다.
-보정된 스티커 위치와 변경 색상은 카메라/수집 통합 노드의 경고 로그에 표시하며,
-한도를 넘거나 Kociemba 물리 검증에서 거부되면 상태를 유효하지 않게 처리합니다. 기본 Lab 거리
-추가 한도는 20이며 `max_color_reassignment_delta` ROS 매개변수로 조정할 수 있습니다.
+보정된 스티커 위치와 변경 색상은 카메라/수집 통합 노드의 경고 로그에 표시합니다.
+한도를 넘거나 Kociemba 물리 검증에서 거부되면 상태를 유효하지 않게 처리합니다.
+기본 Lab 거리 추가 한도는 20이며 `max_color_reassignment_delta` ROS 매개변수로
+조정할 수 있습니다.
+
+## 오프라인 재생·분리형 수집기 확인
+
+다음 4개 노드 절차는 저장 이미지로 오프라인 재생을 하거나 `cube_state_assembler`를
+독립 진단할 때만 사용합니다. 실제 카메라 실험에서는 이 분리형 수집기를 실행하지
+않습니다.
 
 먼저 한 번 빌드합니다.
 
@@ -43,19 +55,22 @@ ros2 run cube_detection cube_detector
 pixi run build-windows
 ```
 
-PowerShell 창 1~3에서 프로젝트 루트로 이동한 뒤 각각 Pixi 환경과 ROS overlay를
-불러오고 노드를 실행합니다.
+PowerShell 창 네 개에서 프로젝트 루트로 이동한 뒤 각각 Pixi 환경과 ROS overlay를
+불러옵니다. 창 1에는 solver, 창 2에는 YOLO detector, 창 3에는 `cube_state_assembler`,
+창 4에는 아래 오프라인 재생 노드를 실행합니다.
 
 ```powershell
 pixi shell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 . .\.colcon-win\install\local_setup.ps1
-ros2 run cube_solver cube_solver
 ```
 
-창 2에서는 마지막 명령을 `ros2 run cube_detection cube_detector`로, 창 3에서는
-`ros2 run cube_detection cube_state_assembler`로 바꿉니다. 창 4에서 같은 방식으로
-환경을 불러온 뒤 참조 이미지 재생기를 실행합니다.
+각 셸에서 아래 명령을 하나씩 실행합니다.
+
+1. 창 1 — 풀이 서비스: `ros2 run cube_solver cube_solver`
+2. 창 2 — YOLO 검출기: `ros2 run cube_detection cube_detector`
+3. 창 3 — 분리형 큐브 상태 조립기: `ros2 run cube_detection cube_state_assembler`
+4. 창 4 — 오프라인 재생기:
 
 ```powershell
 ros2 run cube_detection cube_offline_replay --ros-args `
@@ -67,8 +82,8 @@ ros2 run cube_detection cube_offline_replay --ros-args `
 발행합니다. 실제 카메라 입력은 아래 수동 캡처 절차를 사용합니다.
 
 수동 스캔에서는 오프라인 상태 조립기와 카메라 통합 노드의 결과 대기 타임아웃이
-비활성화되어 있습니다. 면 입력이 누락되면 결과를 임의로 확정하지 않고 추가 입력을 기다립니다. 타임아웃
-코드는 삭제하지 않고, 자동 인식으로 전환할 때 다시 켤 수 있도록 각 코드 위에
+비활성화되어 있습니다. 면 입력이 누락되면 결과를 임의로 확정하지 않고 추가 입력을
+기다립니다. 타임아웃 코드는 삭제하지 않고, 자동 인식으로 전환할 때 다시 켤 수 있도록 각 코드 위에
 `# 자동 인식의 경우 주석 해제`를 적어 주석 처리했습니다.
 
 ## 카메라 검증 절차
@@ -141,7 +156,8 @@ Kociemba solver 규칙에 맞습니다.
 3. 여섯 번 촬영한 뒤 카메라 노드 로그에서 `Captured F`, `Captured R`, `Captured B`,
    `Captured L`, `Captured U`, `Captured D`가 모두 출력되는지 확인합니다.
 4. 상태 검증 성공 시 카메라 노드 로그에 `Valid URFDLB cube state`와
-   `Solver response`가 출력되는지 확인합니다.
+   `Solver response`가 출력되는지 확인합니다. 풀이 수열은 현재 이 로그에만 출력되며
+   별도 파일이나 ROS 토픽에는 저장하지 않습니다.
 5. 검증 오류가 있으면 `Cube state rejected` 뒤에 표시되는 원인을 확인합니다.
 
 색상 개수 보정이 적용되면 카메라 노드 로그에
@@ -163,5 +179,8 @@ Kociemba solver 규칙에 맞습니다.
 순서를 따라야 합니다.
 
 사용자 Windows 세션에서는 `camera_index=0`, `dshow`, 1280×720, 30 FPS 연결과 6면
-캡처가 확인됐습니다. 카메라·수집 통합 및 YOLO 박스 미리보기 변경은 소스에 반영됐으며,
-Windows 재빌드와 실시간 재검증은 아직 완료되지 않았습니다.
+캡처·상태 검증·풀이 수신이 확인됐습니다. 실행 로그에서 유효한 54자 URFDLB 상태와
+20수 풀이 수열이 출력됐습니다. Q 종료 뒤 `Camera scan cancelled by operator`가
+출력됐으며, 이어서 `QThreadStorage: entry ... destroyed before end of thread` 경고도
+관찰됐습니다. 카메라 통합 및 YOLO 박스 미리보기 변경은 Windows에서 실행됐지만,
+화면의 YOLO 박스 표시 여부는 아직 별도로 확인되지 않았습니다.
