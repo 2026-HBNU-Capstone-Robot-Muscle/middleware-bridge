@@ -1,6 +1,7 @@
 """Publish the six reference captures as labeled ROS image messages."""
 
 from pathlib import Path
+import uuid
 
 import cv2
 import rclpy
@@ -55,6 +56,7 @@ class CubeOfflineReplayNode(Node):
                 "and replay_passes at least one"
             )
         self._faces = CAPTURE_FACE_ORDER * replay_passes
+        self._scan_id = uuid.uuid4().hex
         self._index = 0
         self._interval = interval
         self._first_publish = True
@@ -78,6 +80,7 @@ class CubeOfflineReplayNode(Node):
         image.header.frame_id = "offline_cube_scan"
         label = FaceCaptureLabel()
         label.header = image.header
+        label.scan_id = self._scan_id
         label.face_name = face
         self.label_publisher.publish(label)
         self.image_publisher.publish(image)

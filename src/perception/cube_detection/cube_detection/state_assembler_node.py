@@ -16,7 +16,12 @@ from system_interfaces.msg import (
 )
 from system_interfaces.srv import SolveCube
 
-from .cube_state import CAPTURE_FACE_ORDER, classify_cube, sample_face_colors
+from .cube_state import (
+    CAPTURE_FACE_ORDER,
+    DEFAULT_MAX_REASSIGNMENT_DELTA,
+    classify_cube,
+    sample_face_colors,
+)
 
 
 class CubeStateAssemblerNode(Node):
@@ -29,6 +34,9 @@ class CubeStateAssemblerNode(Node):
         self.declare_parameter("face_label_topic", "/cube/scan/face_label")
         self.declare_parameter("cube_state_topic", "/cube/state")
         self.declare_parameter("solve_service", "/cube/solve")
+        self.declare_parameter(
+            "max_color_reassignment_delta", DEFAULT_MAX_REASSIGNMENT_DELTA
+        )
         # 자동 인식의 경우 주석 해제
         # self.declare_parameter("scan_timeout_sec", 12.0)
         self.bridge = CvBridge()
@@ -40,6 +48,8 @@ class CubeStateAssemblerNode(Node):
         self._captures = {}
         self._errors = []
         self._completed = False
+        self._active_scan_id = None
+        self._retired_scan_ids = set()
         # 자동 인식의 경우 주석 해제
         # self._scan_timeout = float(self.get_parameter("scan_timeout_sec").value)
         # if self._scan_timeout <= 0:
@@ -128,6 +138,34 @@ class CubeStateAssemblerNode(Node):
             self._errors.append(f"Unsupported face label: {label.face_name!r}")
             self.get_logger().error(self._errors[-1])
             return
+        scan_id = str(getattr(label, "scan_id", "")).strip()
+        if scan_id:
+            if self._active_scan_id is None:
+                self._active_scan_id = scan_id
+            elif scan_id != self._active_scan_id:
+                if scan_id in self._retired_scan_ids:
+                    self.get_logger().debug(
+                        f"Ignoring delayed capture from retired scan {scan_id}."
+                    )
+                    return
+                if face_name != CAPTURE_FACE_ORDER[0]:
+                    self.get_logger().warning(
+                        f"Ignoring scan {scan_id} before its first F face."
+                    )
+                    return
+                self._retired_scan_ids.add(self._active_scan_id)
+                self._active_scan_id = scan_id
+                self._captures.clear()
+                self._errors.clear()
+                self._completed = False
+                self.get_logger().info(
+                    f"Started new cube scan {scan_id}; cleared previous captures."
+                )
+        if self._completed:
+            self.get_logger().debug(
+                f"Ignoring capture for completed scan {self._active_scan_id}"
+            )
+            return
         if face_name in self._captures:
             self.get_logger().debug(f"Ignoring duplicate capture for {face_name}")
             return
@@ -161,9 +199,18 @@ class CubeStateAssemblerNode(Node):
         if self._completed:
             return
         self._completed = True
-        facelets, validation_errors = classify_cube(self._captures)
+        facelets, validation_errors, corrections = classify_cube(
+            self._captures,
+            float(self.get_parameter("max_color_reassignment_delta").value),
+        )
+        if corrections:
+            self.get_logger().warning(
+                "Balanced near-boundary color assignments: "
+                + "; ".join(corrections)
+            )
         errors = self._errors + validation_errors
         state = CubeState()
+        state.scan_id = self._active_scan_id or ""
         if header is not None:
             state.header = header
         state.valid = not errors and bool(facelets)

@@ -10,6 +10,7 @@ CAPTURE_FACE_ORDER = ("F", "R", "B", "L", "U", "D")
 SOLVER_FACE_ORDER = ("U", "R", "F", "D", "L", "B")
 WARP_SIZE = 300
 INNER_RATIO = 0.72
+DEFAULT_MAX_REASSIGNMENT_DELTA = 20.0
 
 
 def order_corners(corners):
@@ -57,11 +58,60 @@ def _bgr_to_lab(colors):
     return cv2.cvtColor(values.reshape(-1, 1, 3), cv2.COLOR_BGR2LAB).reshape(-1, 3)
 
 
-def classify_cube(captures):
-    """Map six face samples to URFDLB facelets and return validation messages."""
+def _balance_color_assignments(distances, max_reassignment_delta):
+    """Balance nearest-center labels to nine stickers per color conservatively."""
+    labels = np.argmin(distances, axis=1)
+    initial_counts = np.bincount(labels, minlength=len(CAPTURE_FACE_ORDER))
+    counts = initial_counts.copy()
+    corrections = []
+    while np.any(counts != 9):
+        best = None
+        for sticker_index, source in enumerate(labels):
+            if counts[source] <= 9 or sticker_index % 9 == 4:
+                continue
+            for target in range(len(CAPTURE_FACE_ORDER)):
+                if counts[target] >= 9:
+                    continue
+                delta = float(
+                    distances[sticker_index, target]
+                    - distances[sticker_index, source]
+                )
+                if best is None or delta < best[0]:
+                    best = (delta, sticker_index, int(source), target)
+        if best is None or best[0] > max_reassignment_delta:
+            raw_counts = ", ".join(
+                f"{face}={initial_counts[index]}"
+                for index, face in enumerate(CAPTURE_FACE_ORDER)
+            )
+            return None, corrections, (
+                "Could not balance sticker colors within the configured Lab "
+                f"reassignment limit ({max_reassignment_delta:.1f}); "
+                f"nearest-center counts: {raw_counts}"
+            )
+
+        delta, sticker_index, source, target = best
+        labels[sticker_index] = target
+        counts[source] -= 1
+        counts[target] += 1
+        face = CAPTURE_FACE_ORDER[sticker_index // 9]
+        cell = sticker_index % 9 + 1
+        corrections.append(
+            f"{face}[{cell}] {CAPTURE_FACE_ORDER[source]}->"
+            f"{CAPTURE_FACE_ORDER[target]} (extra Lab distance {delta:.1f})"
+        )
+    return labels, corrections, None
+
+
+def classify_cube(
+    captures,
+    max_reassignment_delta=DEFAULT_MAX_REASSIGNMENT_DELTA,
+):
+    """Map six face samples to balanced URFDLB facelets and validate them."""
     missing = [face for face in CAPTURE_FACE_ORDER if face not in captures]
     if missing:
-        return "", [f"Missing captured faces: {', '.join(missing)}"]
+        return "", [f"Missing captured faces: {', '.join(missing)}"], []
+    if max_reassignment_delta < 0:
+        return "", ["max_reassignment_delta must be non-negative"], []
 
     centers_bgr = np.asarray([captures[face][4] for face in CAPTURE_FACE_ORDER])
     centers_lab = _bgr_to_lab(centers_bgr).astype(np.float32)
@@ -77,14 +127,32 @@ def classify_cube(captures):
                     f"are too similar (Lab distance {distance:.1f})"
                 )
 
+    all_samples = np.vstack([captures[face] for face in CAPTURE_FACE_ORDER])
+    samples_lab = _bgr_to_lab(all_samples).astype(np.float32)
+    distances = np.linalg.norm(
+        samples_lab[:, None, :] - centers_lab[None, :, :], axis=2
+    )
+    assigned, corrections, balance_error = _balance_color_assignments(
+        distances, float(max_reassignment_delta)
+    )
+    if balance_error:
+        errors.append(balance_error)
+
     labels_by_face = {}
     for face in CAPTURE_FACE_ORDER:
-        samples_lab = _bgr_to_lab(captures[face]).astype(np.float32)
-        distances = np.linalg.norm(
-            samples_lab[:, None, :] - centers_lab[None, :, :], axis=2
-        )
-        order = np.argsort(distances, axis=1)
-        labels_by_face[face] = [CAPTURE_FACE_ORDER[index] for index in order[:, 0]]
+        face_index = CAPTURE_FACE_ORDER.index(face)
+        if assigned is None:
+            labels_by_face[face] = [
+                CAPTURE_FACE_ORDER[index]
+                for index in np.argmin(
+                    distances[face_index * 9:(face_index + 1) * 9], axis=1
+                )
+            ]
+        else:
+            labels_by_face[face] = [
+                CAPTURE_FACE_ORDER[index]
+                for index in assigned[face_index * 9:(face_index + 1) * 9]
+            ]
 
     facelets = "".join("".join(labels_by_face[face]) for face in SOLVER_FACE_ORDER)
     counts = Counter(facelets)
@@ -113,4 +181,4 @@ def classify_cube(captures):
                 errors.append(f"Kociemba rejected the detected state: {verification}")
         except Exception as exc:
             errors.append(f"Physical cube-state validation failed: {exc}")
-    return (facelets if not errors else ""), errors
+    return (facelets if not errors else ""), errors, corrections
