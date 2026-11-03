@@ -133,13 +133,28 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
      -p camera_fps:=30.0
    ```
 
-풀이 토픽을 별도로 확인하려면 네 번째 PowerShell 창에서 같은 Pixi 환경과 ROS overlay를
-불러온 뒤 아래 명령을 실행합니다. 카메라 노드가 실행 중이면 이미 풀이가 나온 뒤에도
+풀이 토픽 발행을 확인하려면 네 번째 PowerShell 창을 열고 프로젝트 루트에서 같은 Pixi
+환경과 ROS overlay를 불러옵니다. 카메라 노드가 실행 중이면 풀이가 이미 나온 뒤에도
 최근 풀이 한 건을 받을 수 있도록 publisher가 transient-local QoS를 사용합니다.
 
 ```powershell
+cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+pixi shell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+. .\.colcon-win\install\local_setup.ps1
 ros2 topic echo /cube/solution system_interfaces/msg/CubeSolution
 ```
+
+토픽 타입과 publisher가 연결되어 있는지는 다음 명령으로 확인할 수 있습니다.
+
+```powershell
+ros2 topic info /cube/solution --verbose
+```
+
+`ros2 topic echo`에는 `scan_id`, `facelets`, `moves`가 출력되어야 합니다. `moves` 배열이
+풀이 수열입니다. `Cube solver service ready: /cube/solve` 로그는 서비스 시작만 확인하며,
+토픽 발행을 확인하려면 echo에서 메시지를 실제로 받아야 합니다. echo는 카메라 노드가
+실행 중일 때 풀이 전부터 켜두거나, 풀이 후 노드를 종료하기 전에 실행합니다.
 
 OpenCV 미리보기 창이 뜨면 시작 자세를 `F` 정면, `U` 위쪽, `R` 사용자 기준
 오른쪽으로 맞춥니다. 각 면이 카메라를 향할 때 `Space`를 눌러 촬영합니다. 순서는
@@ -178,8 +193,10 @@ Kociemba solver 규칙에 맞습니다.
      Select-Object -First 1 FullName, LastWriteTime
    ```
 
-6. 선택적으로 네 번째 토픽 확인 셸에서 같은 `scan_id`와 이동 수열이 발행되는지
-   확인합니다. ROS 메시지에는 `header`, `scan_id`, `facelets`, `moves`가 포함됩니다.
+6. 네 번째 셸의 `ros2 topic echo`에서 `/cube/solution` 메시지를 받고 카메라 로그와
+   `scan_id`, `facelets`, `moves`가 일치하는지 확인합니다. `ros2 topic info`에는 타입
+   `system_interfaces/msg/CubeSolution`과 publisher가 표시되어야 합니다. ROS 메시지에는
+   `header`, `scan_id`, `facelets`, `moves`가 포함됩니다.
 7. 검증 오류가 있으면 `Cube state rejected` 뒤에 표시되는 원인을 확인합니다.
 
 색상 개수 보정이 적용되면 카메라 노드 로그에
