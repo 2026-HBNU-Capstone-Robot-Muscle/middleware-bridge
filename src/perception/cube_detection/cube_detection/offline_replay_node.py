@@ -68,7 +68,9 @@ class CubeOfflineReplayNode(Node):
     def _publish_next(self):
         if self._index >= len(self._faces):
             self._timer.cancel()
-            self.get_logger().info("Replay complete; keep ROS nodes running for results.")
+            self.get_logger().info(
+                "Replay complete; keep ROS nodes running for results."
+            )
             return
         face = self._faces[self._index]
         image = self.bridge.cv2_to_imgmsg(self.images[face], encoding="bgr8")

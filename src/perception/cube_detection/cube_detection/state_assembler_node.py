@@ -1,7 +1,8 @@
 """Assemble labeled face detections into a validated cube and request a solution."""
 
 from collections import OrderedDict
-import time
+# 자동 인식의 경우 주석 해제
+# import time
 
 import rclpy
 from cv_bridge import CvBridge, CvBridgeError
@@ -28,7 +29,8 @@ class CubeStateAssemblerNode(Node):
         self.declare_parameter("face_label_topic", "/cube/scan/face_label")
         self.declare_parameter("cube_state_topic", "/cube/state")
         self.declare_parameter("solve_service", "/cube/solve")
-        self.declare_parameter("scan_timeout_sec", 12.0)
+        # 자동 인식의 경우 주석 해제
+        # self.declare_parameter("scan_timeout_sec", 12.0)
         self.bridge = CvBridge()
         self._pending = {
             "image": OrderedDict(),
@@ -38,11 +40,12 @@ class CubeStateAssemblerNode(Node):
         self._captures = {}
         self._errors = []
         self._completed = False
-        self._scan_timeout = float(self.get_parameter("scan_timeout_sec").value)
-        if self._scan_timeout <= 0:
-            raise ValueError("scan_timeout_sec must be greater than zero")
-        self._last_label_time = None
-        self._last_header = None
+        # 자동 인식의 경우 주석 해제
+        # self._scan_timeout = float(self.get_parameter("scan_timeout_sec").value)
+        # if self._scan_timeout <= 0:
+        #     raise ValueError("scan_timeout_sec must be greater than zero")
+        # self._last_label_time = None
+        # self._last_header = None
         self.state_publisher = self.create_publisher(
             CubeState, str(self.get_parameter("cube_state_topic").value), 10
         )
@@ -67,7 +70,8 @@ class CubeStateAssemblerNode(Node):
             self._on_label,
             10,
         )
-        self._timeout_timer = self.create_timer(1.0, self._check_scan_timeout)
+        # 자동 인식의 경우 주석 해제
+        # self._timeout_timer = self.create_timer(1.0, self._check_scan_timeout)
         self.get_logger().info(
             "Pairing images, detections, and face labels by timestamp; "
             "waiting for F, R, B, L, U, D."
@@ -93,23 +97,25 @@ class CubeStateAssemblerNode(Node):
         self._store("detections", message)
 
     def _on_label(self, message):
-        self._last_label_time = time.monotonic()
-        self._last_header = message.header
+        # 자동 인식의 경우 주석 해제
+        # self._last_label_time = time.monotonic()
+        # self._last_header = message.header
         self._store("label", message)
 
-    def _check_scan_timeout(self):
-        if (
-            self._completed
-            or self._last_label_time is None
-            or time.monotonic() - self._last_label_time <= self._scan_timeout
-        ):
-            return
-        missing = [face for face in CAPTURE_FACE_ORDER if face not in self._captures]
-        if missing:
-            self._errors.append(
-                f"Timed out waiting for cube faces: {', '.join(missing)}"
-            )
-        self._finalize(self._last_header)
+    # 자동 인식의 경우 주석 해제
+    # def _check_scan_timeout(self):
+    #     if (
+    #         self._completed
+    #         or self._last_label_time is None
+    #         or time.monotonic() - self._last_label_time <= self._scan_timeout
+    #     ):
+    #         return
+    #     missing = [face for face in CAPTURE_FACE_ORDER if face not in self._captures]
+    #     if missing:
+    #         self._errors.append(
+    #             f"Timed out waiting for cube faces: {', '.join(missing)}"
+    #         )
+    #     self._finalize(self._last_header)
 
     def _try_consume(self, key):
         if self._completed or any(key not in items for items in self._pending.values()):
@@ -123,10 +129,12 @@ class CubeStateAssemblerNode(Node):
             self.get_logger().error(self._errors[-1])
             return
         if face_name in self._captures:
-            self.get_logger().warning(f"Ignoring duplicate capture for {face_name}")
+            self.get_logger().debug(f"Ignoring duplicate capture for {face_name}")
             return
         if not detections.detections:
-            self.get_logger().warning(f"No YOLO face detection for {face_name}; awaiting retry")
+            self.get_logger().warning(
+                f"No YOLO face detection for {face_name}; awaiting retry"
+            )
             return
 
         detection = max(detections.detections, key=lambda item: item.confidence)
@@ -194,7 +202,9 @@ class CubeStateAssemblerNode(Node):
                 "Solver response: " + (" ".join(response.moves) or "already solved")
             )
         else:
-            self.get_logger().error(f"Cube solver rejected state: {response.error_message}")
+            self.get_logger().error(
+                f"Cube solver rejected state: {response.error_message}"
+            )
 
 
 def main(args=None):

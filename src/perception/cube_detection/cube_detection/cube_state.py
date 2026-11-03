@@ -68,7 +68,9 @@ def classify_cube(captures):
     errors = []
     for index, face in enumerate(CAPTURE_FACE_ORDER):
         for other_index in range(index):
-            distance = float(np.linalg.norm(centers_lab[index] - centers_lab[other_index]))
+            distance = float(
+                np.linalg.norm(centers_lab[index] - centers_lab[other_index])
+            )
             if distance < 16.0:
                 errors.append(
                     f"Center colors for {CAPTURE_FACE_ORDER[other_index]} and {face} "
@@ -78,15 +80,24 @@ def classify_cube(captures):
     labels_by_face = {}
     for face in CAPTURE_FACE_ORDER:
         samples_lab = _bgr_to_lab(captures[face]).astype(np.float32)
-        distances = np.linalg.norm(samples_lab[:, None, :] - centers_lab[None, :, :], axis=2)
+        distances = np.linalg.norm(
+            samples_lab[:, None, :] - centers_lab[None, :, :], axis=2
+        )
         order = np.argsort(distances, axis=1)
         labels_by_face[face] = [CAPTURE_FACE_ORDER[index] for index in order[:, 0]]
 
     facelets = "".join("".join(labels_by_face[face]) for face in SOLVER_FACE_ORDER)
     counts = Counter(facelets)
-    wrong_counts = [f"{face}={counts.get(face, 0)}" for face in SOLVER_FACE_ORDER if counts.get(face, 0) != 9]
+    wrong_counts = [
+        f"{face}={counts.get(face, 0)}"
+        for face in SOLVER_FACE_ORDER
+        if counts.get(face, 0) != 9
+    ]
     if wrong_counts:
-        errors.append("Each face color must occur exactly 9 times: " + ", ".join(wrong_counts))
+        errors.append(
+            "Each face color must occur exactly 9 times: "
+            + ", ".join(wrong_counts)
+        )
     for face_index, face in enumerate(SOLVER_FACE_ORDER):
         center = facelets[face_index * 9 + 4]
         if center != face:

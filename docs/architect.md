@@ -38,11 +38,12 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 │   │       ├── cube_detection/cube_state.py # 면 원근 보정·색 분류·상태 검증
 │   │       ├── cube_detection/state_assembler_node.py # 6면 상태 조립 및 solver 요청
 │   │       ├── cube_detection/offline_replay_node.py # 저장된 면 이미지 ROS 재생
+│   │       ├── cube_detection/camera_capture_node.py # 카메라 미리보기·6면 수동 캡처
 │   │       ├── model/
 │   │       │   ├── cube-detector.pt   # 파인튜닝 YOLO 가중치
 │   │       │   └── .gitkeep
 │   │       ├── package.xml
-│   │       └── setup.py              # cube_detector 실행 진입점
+│   │       └── setup.py              # detector·assembler·replay·camera 진입점
 │   ├── planning/
 │   │   ├── README.md
 │   │   └── cube_solver/
@@ -79,9 +80,11 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 - `cube_detection`은 `sensor_msgs/msg/Image`를 `/camera/image_raw`에서 받아 `/cube/face_detections`로 OBB 결과를 발행합니다. `model/cube-detector.pt`가 패키지 모델 경로에 포함되며 `model_path`, `confidence_threshold`, `device`, 토픽 이름을 매개변수로 설정할 수 있습니다. 기본 추론 장치는 CPU, 기본 confidence 임계값은 0.5입니다. 번들 모델로 참고 디렉토리의 1280×720 샘플 이미지를 처리해 `side` 검출 1개, confidence 0.947 및 꼭짓점 4개가 포함된 ROS 메시지를 확인했습니다.
 - `cube_solver`는 `/cube/solve` 서비스를 제공하며 54자 URFDLB 입력, 허용 문자와 면별 9개 개수를 확인한 뒤 `rubik-solver-py==0.1.1`의 Kociemba Two-Phase solver를 호출합니다. 응답에는 성공 여부, 토큰 배열, 실패 사유를 기록합니다. 한 번 회전한 큐브를 푸는 콜백 확인과 assembler 노드에서 실제 서비스 호출을 보내 20수 해법을 받는 통합 검증을 완료했습니다.
 - `cube_state_assembler`는 이미지·OBB 결과·면 라벨을 ROS timestamp로 짝지어 면을 원근 보정하고 각 스티커 중앙부의 중앙값 BGR을 샘플링합니다. `F, R, B, L, U, D` 중심 스티커를 Lab 기준색으로 사용해 54개 스티커를 분류하고, 색상 개수·면 중앙값·Kociemba 물리 상태를 검증합니다. 유효할 때 `/cube/state`를 발행한 뒤 `/cube/solve` 서비스를 호출합니다.
-- `cube_offline_replay`는 시작 후 5초 대기하고 `cube_3D_conversion/captures/{F,R,B,L,U,D}/original.png`를 `/camera/image_raw`와 `/cube/scan/face_label`에 3초 간격으로 두 차례 재생합니다. assembler는 면별 중복 프레임을 무시하고 첫 검출 실패 시 다음 프레임을 재시도합니다. 12초 동안 입력이 없고 6면을 채우지 못하면 불완전 상태를 발행합니다. 참조 디렉토리는 읽기 전용이며, 이 재생은 실제 카메라 검증을 대체하지 않습니다.
+- `cube_camera_capture`는 OpenCV 카메라 미리보기를 제공하고 `Space` 입력으로 현재 예상 면의 이미지와 `FaceCaptureLabel`을 동일 timestamp로 발행합니다. 입력 쌍은 첫 발행 후 두 차례 재전송합니다. `camera_index`, Windows 캡처 backend (`dshow`, `msmf`, `any`), 프레임 크기와 카메라 FPS를 매개변수로 받습니다. 캡처 순서는 `F, R, B, L, U, D`이며 의미상 방향을 모델이 판별하는 것은 아닙니다.
+- `cube_offline_replay`는 시작 후 5초 대기하고 `cube_3D_conversion/captures/{F,R,B,L,U,D}/original.png`를 `/camera/image_raw`와 `/cube/scan/face_label`에 3초 간격으로 두 차례 재생합니다. assembler는 면별 중복 프레임을 무시하고 첫 검출 실패 시 다음 프레임을 재시도합니다. 수동 스캔용 상태 조립기 및 카메라 결과 대기 타임아웃 코드는 `# 자동 인식의 경우 주석 해제` 안내와 함께 주석 처리되어 있습니다. 참조 디렉토리는 읽기 전용이며, 이 재생은 실제 카메라 검증을 대체하지 않습니다.
 - 6개 샘플 이미지에 번들 YOLO 모델을 각각 실행하고, 조립된 54자 상태가 참조 `cube_state.json`에서 생성한 URFDLB 문자열과 일치하는 것을 확인했습니다. Kociemba 물리 상태 검증도 통과했습니다. Windows 전체 colcon 빌드와 Python 문법 컴파일, `git diff --check`가 통과했습니다.
 - ROS 노드 간 재생 검증 초기에 첫 `F` 프레임이 수신되지 않는 경우를 확인해 재생 시작 전 대기와 두 차례 재생을 적용하고, assembler가 면 중복을 무시하며 실패 입력을 재시도하도록 했습니다. 수정 후 ROS 검증에서 여섯 면 모두 검출·조립됐고, 참조 `cube_state.json`과 같은 54자 URFDLB 상태를 `/cube/state`로 발행했습니다. `/cube/solve` 응답에서 20수 해법을 받았습니다. 검증에 사용한 네 노드는 모두 종료했습니다.
+- 사용자가 실행한 Windows 세션에서 `camera_index=0`, `dshow`, 1280×720, 30 FPS 카메라 연결 및 여섯 면 캡처가 확인됐습니다. assembler에는 `R/B/L/U/D` 다섯 면만 도달했고 `F`는 짝지어지지 않았습니다. camera 노드는 각 이미지·라벨 쌍을 같은 timestamp로 두 차례 재전송하도록 수정했습니다. 재시도 동작의 카메라 재검증은 아직 완료되지 않았습니다.
 
 ### `system_interfaces` 메시지·서비스
 
