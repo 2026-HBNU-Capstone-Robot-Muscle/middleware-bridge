@@ -1,8 +1,12 @@
 """Capture six operator-labeled cube faces from a Windows camera."""
 
+import json
 import time
 import uuid
 from collections import OrderedDict
+from datetime import datetime, timezone
+from functools import partial
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -10,9 +14,14 @@ import rclpy
 from cv_bridge import CvBridge
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import (
+    DurabilityPolicy,
+    QoSProfile,
+    ReliabilityPolicy,
+    qos_profile_sensor_data,
+)
 from sensor_msgs.msg import Image
-from system_interfaces.msg import CubeState, FaceDetectionArray
+from system_interfaces.msg import CubeSolution, CubeState, FaceDetectionArray
 from system_interfaces.srv import SolveCube
 
 from .cube_state import (
@@ -41,6 +50,10 @@ class CubeCameraCaptureNode(Node):
         self.declare_parameter("detections_topic", "/cube/face_detections")
         self.declare_parameter("cube_state_topic", "/cube/state")
         self.declare_parameter("solve_service", "/cube/solve")
+        self.declare_parameter("solution_topic", "/cube/solution")
+        self.declare_parameter(
+            "solution_json_dir", str(Path.cwd() / "results" / "cube_solutions")
+        )
         self.declare_parameter(
             "max_color_reassignment_delta", DEFAULT_MAX_REASSIGNMENT_DELTA
         )
@@ -122,6 +135,23 @@ class CubeCameraCaptureNode(Node):
         self.state_publisher = self.create_publisher(
             CubeState, str(self.get_parameter("cube_state_topic").value), 10
         )
+        solution_qos = QoSProfile(
+            depth=10,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.solution_publisher = self.create_publisher(
+            CubeSolution,
+            str(self.get_parameter("solution_topic").value),
+            solution_qos,
+        )
+        solution_json_dir = str(
+            self.get_parameter("solution_json_dir").value
+        ).strip()
+        if not solution_json_dir:
+            self.camera.release()
+            raise ValueError("solution_json_dir must not be empty")
+        self._solution_json_dir = Path(solution_json_dir).expanduser()
         self.solve_client = self.create_client(
             SolveCube, str(self.get_parameter("solve_service").value)
         )
@@ -422,23 +452,82 @@ class CubeCameraCaptureNode(Node):
         request = SolveCube.Request()
         request.facelets = state.facelets
         future = self.solve_client.call_async(request)
-        future.add_done_callback(self._on_solution)
+        future.add_done_callback(
+            partial(
+                self._on_solution,
+                scan_id=self._scan_id,
+                facelets=state.facelets,
+                header=state.header,
+            )
+        )
 
-    def _on_solution(self, future):
+    def _on_solution(self, future, *, scan_id, facelets, header):
         try:
             response = future.result()
         except Exception as exc:
             self.get_logger().error(f"Cube solver request failed: {exc}")
             return
         if response.success:
+            moves = list(response.moves)
             self.get_logger().info(
-                "Solver response: "
-                + (" ".join(response.moves) or "already solved")
+                "Solver response: " + (" ".join(moves) or "already solved")
             )
+            solution = CubeSolution()
+            solution.header = header
+            solution.scan_id = scan_id
+            solution.facelets = facelets
+            solution.moves = moves
+            self.solution_publisher.publish(solution)
+            self.get_logger().info(
+                "Published solution on /cube/solution "
+                f"(scan_id={scan_id}, moves={len(moves)})."
+            )
+            try:
+                output_path = self._save_solution_json(
+                    scan_id, facelets, moves
+                )
+            except OSError as exc:
+                self.get_logger().error(
+                    f"Could not save solution JSON in "
+                    f"{self._solution_json_dir}: {exc}"
+                )
+            else:
+                self.get_logger().info(
+                    f"Saved solution JSON: {output_path}"
+                )
         else:
             self.get_logger().error(
                 f"Cube solver rejected state: {response.error_message}"
             )
+
+    def _save_solution_json(self, scan_id, facelets, moves):
+        created_at = datetime.now(timezone.utc)
+        timestamp = created_at.strftime("%Y%m%dT%H%M%S_%fZ")
+        output_path = self._solution_json_dir / (
+            f"cube_solution_{timestamp}_{scan_id}.json"
+        )
+        temporary_path = output_path.with_suffix(".json.tmp")
+        payload = {
+            "format": "Kociemba URFDLB",
+            "scan_id": scan_id,
+            "created_at": created_at.isoformat().replace("+00:00", "Z"),
+            "facelets": facelets,
+            "moves": list(moves),
+            "move_count": len(moves),
+        }
+        self._solution_json_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            with temporary_path.open("w", encoding="utf-8", newline="\n") as file:
+                json.dump(payload, file, ensure_ascii=False, indent=2)
+                file.write("\n")
+            temporary_path.replace(output_path)
+        except OSError:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
+        return output_path
 
     def destroy_node(self):
         if hasattr(self, "camera"):

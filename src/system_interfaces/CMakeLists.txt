@@ -15,6 +15,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FaceDetectionArray.msg"
   "msg/FaceCaptureLabel.msg"
   "msg/CubeState.msg"
+  "msg/CubeSolution.msg"
   "srv/SolveCube.srv"
   DEPENDENCIES geometry_msgs std_msgs
 )

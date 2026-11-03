@@ -307,6 +307,7 @@ venv.bak/
 .colcon-win/
 install/
 log/
+results/cube_solutions/
 
 # Spyder project settings
 .spyderproject

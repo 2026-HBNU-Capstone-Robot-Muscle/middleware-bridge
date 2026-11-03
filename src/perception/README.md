@@ -29,6 +29,9 @@ ros2 run cube_detection cube_detector
 검출기에 보내고 반환된 OBB 꼭짓점·클래스·신뢰도를 카메라 창에 표시합니다. 수동 촬영
 프레임도 같은 이미지 토픽으로 보내며, 해당 timestamp의 검출 결과로 색상을 샘플링합니다.
 6면 순서는 `F, R, B, L, U, D`입니다.
+풀이 성공 시 수열을 `/cube/solution` (`system_interfaces/msg/CubeSolution`)으로 발행하고
+JSON 파일로 저장합니다. 기본 저장 위치는 프로젝트 루트의
+`results/cube_solutions/`이며 `solution_json_dir` 매개변수로 변경할 수 있습니다.
 
 `cube_state_assembler`는 분리된 수집 경로를 확인하는 오프라인 재생/진단용으로
 유지합니다. 실제 카메라 검증에서는 실행하지 않습니다. 통합 노드는 중심색 기준 Lab
@@ -130,6 +133,14 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
      -p camera_fps:=30.0
    ```
 
+풀이 토픽을 별도로 확인하려면 네 번째 PowerShell 창에서 같은 Pixi 환경과 ROS overlay를
+불러온 뒤 아래 명령을 실행합니다. 카메라 노드가 실행 중이면 이미 풀이가 나온 뒤에도
+최근 풀이 한 건을 받을 수 있도록 publisher가 transient-local QoS를 사용합니다.
+
+```powershell
+ros2 topic echo /cube/solution system_interfaces/msg/CubeSolution
+```
+
 OpenCV 미리보기 창이 뜨면 시작 자세를 `F` 정면, `U` 위쪽, `R` 사용자 기준
 오른쪽으로 맞춥니다. 각 면이 카메라를 향할 때 `Space`를 눌러 촬영합니다. 순서는
 `F→R→B→L→U→D`입니다.
@@ -156,9 +167,20 @@ Kociemba solver 규칙에 맞습니다.
 3. 여섯 번 촬영한 뒤 카메라 노드 로그에서 `Captured F`, `Captured R`, `Captured B`,
    `Captured L`, `Captured U`, `Captured D`가 모두 출력되는지 확인합니다.
 4. 상태 검증 성공 시 카메라 노드 로그에 `Valid URFDLB cube state`와
-   `Solver response`가 출력되는지 확인합니다. 풀이 수열은 현재 이 로그에만 출력되며
-   별도 파일이나 ROS 토픽에는 저장하지 않습니다.
-5. 검증 오류가 있으면 `Cube state rejected` 뒤에 표시되는 원인을 확인합니다.
+   `Solver response`가 출력되는지 확인합니다. 이어서 `Published solution on /cube/solution`
+   및 `Saved solution JSON` 로그를 확인합니다.
+5. JSON이 기본 경로 `results/cube_solutions/`에 생성되는지 확인합니다. 파일에는
+   `scan_id`, UTC 생성 시각, 54자 `facelets`, 풀이 `moves`, `move_count`가 들어갑니다.
+
+   ```powershell
+   Get-ChildItem .\results\cube_solutions\cube_solution_*.json |
+     Sort-Object LastWriteTime -Descending |
+     Select-Object -First 1 FullName, LastWriteTime
+   ```
+
+6. 선택적으로 네 번째 토픽 확인 셸에서 같은 `scan_id`와 이동 수열이 발행되는지
+   확인합니다. ROS 메시지에는 `header`, `scan_id`, `facelets`, `moves`가 포함됩니다.
+7. 검증 오류가 있으면 `Cube state rejected` 뒤에 표시되는 원인을 확인합니다.
 
 색상 개수 보정이 적용되면 카메라 노드 로그에
 `Balanced near-boundary color assignments`와
@@ -180,7 +202,9 @@ Kociemba solver 규칙에 맞습니다.
 
 사용자 Windows 세션에서는 `camera_index=0`, `dshow`, 1280×720, 30 FPS 연결과 6면
 캡처·상태 검증·풀이 수신이 확인됐습니다. 실행 로그에서 유효한 54자 URFDLB 상태와
-20수 풀이 수열이 출력됐습니다. Q 종료 뒤 `Camera scan cancelled by operator`가
+20수 풀이 수열이 출력됐습니다. 결과 저장·발행 기능은 추가됐으며, JSON 파일과
+`/cube/solution` 토픽의 실제 동작은 아직 검증되지 않았습니다. Q 종료 뒤
+`Camera scan cancelled by operator`가
 출력됐으며, 이어서 `QThreadStorage: entry ... destroyed before end of thread` 경고도
 관찰됐습니다. 카메라 통합 및 YOLO 박스 미리보기 변경은 Windows에서 실행됐지만,
 화면의 YOLO 박스 표시 여부는 아직 별도로 확인되지 않았습니다.
