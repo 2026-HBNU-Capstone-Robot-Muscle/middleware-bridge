@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'leap_hand_primitive_server = leap_hand_control.primitive_server:main',
         ],
     },
 )

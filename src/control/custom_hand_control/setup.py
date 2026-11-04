@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'custom_hand_primitive_server = custom_hand_control.primitive_server:main',
         ],
     },
 )
