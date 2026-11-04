@@ -1,0 +1,17 @@
+# Goal: 저장된 풀이를 명시적으로 실행
+string scan_id
+string workflow_id
+bool dry_run
+---
+# Result
+bool success
+bool dry_run
+string scan_id
+string execution_id
+uint32 completed_moves
+uint32 completed_steps
+string error_code
+string error_message
+---
+# Feedback
+system_interfaces/CubeExecutionStatus status
