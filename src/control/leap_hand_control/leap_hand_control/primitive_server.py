@@ -41,11 +41,14 @@ class LeapHandPrimitiveServer(Node):
 
         if (not goal.scan_id or not goal.execution_id or not goal.primitive_id
                 or goal.move_index == 0 or goal.step_index == 0
-                or not re.fullmatch(r"[URFDLB](?:2|')?", goal.cube_move)):
+                or not re.fullmatch(r"[URFDLB](?:2|')?", goal.cube_move)
+                or goal.target_face not in ('U', 'R', 'F', 'D', 'L', 'B')
+                or goal.primitive_id != 'orient_face_up_and_support'
+                or goal.clockwise_quarter_turns != 0):
             result.success = False
             result.error_code = 'INVALID_PRIMITIVE'
             result.error_message = (
-                '식별자·1 기반 이동/단계 인덱스·유효한 cube_move·primitive_id가 필요합니다.')
+                '식별자, 유효한 face/move/LEAP primitive가 필요합니다.')
             feedback.state = feedback.STATE_FAILED
             feedback.message = result.error_message
             goal_handle.publish_feedback(feedback)

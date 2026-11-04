@@ -1,4 +1,4 @@
-"""Validate and dry-run cube solutions through a ROS 2 action."""
+"""Validate cube solutions and run their two-hand workflow in dry-run mode."""
 
 import re
 import uuid
@@ -6,16 +6,23 @@ from collections import OrderedDict
 from threading import Lock
 
 import rclpy
-from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.action import (
+    ActionClient,
+    ActionServer,
+    CancelResponse,
+    GoalResponse,
+)
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from system_interfaces.action import ExecuteCubeSolution
+from system_interfaces.action import ExecuteCubeSolution, ExecuteHandPrimitive
 from system_interfaces.msg import CubeExecutionStatus, CubeSolution
 
 
 _MOVE_PATTERN = re.compile(r"^[URFDLB](?:2|')?$")
 _FACES = 'URFDLB'
 _MAX_SAVED_SOLUTIONS = 32
+_WORKFLOW_ID = 'two_hand_layer_turn_v1'
 
 
 def validate_solution(solution):
@@ -35,11 +42,60 @@ def validate_solution(solution):
     return None
 
 
+def compile_workflow(moves):
+    """Expand each Kociemba token into semantic LEAP and Custom Hand steps.
+
+    The target face stays in Kociemba's logical URFDLB frame. A hand adapter
+    must combine it with measured cube pose before issuing physical commands.
+    """
+    plan = []
+    for move_index, move in enumerate(moves, start=1):
+        target_face = move[0]
+        suffix = move[1:]
+        turns = 2 if suffix == '2' else -1 if suffix == "'" else 1
+        plan.extend([
+            {
+                'move_index': move_index,
+                'cube_move': move,
+                'target_face': target_face,
+                'clockwise_quarter_turns': 0,
+                'hand_id': 'leap_hand',
+                'primitive_id': 'orient_face_up_and_support',
+            },
+            {
+                'move_index': move_index,
+                'cube_move': move,
+                'target_face': target_face,
+                'clockwise_quarter_turns': 0,
+                'hand_id': 'custom_hand',
+                'primitive_id': 'grasp_upper_layer',
+            },
+            {
+                'move_index': move_index,
+                'cube_move': move,
+                'target_face': target_face,
+                'clockwise_quarter_turns': turns,
+                'hand_id': 'custom_hand',
+                'primitive_id': 'rotate_upper_layer',
+            },
+            {
+                'move_index': move_index,
+                'cube_move': move,
+                'target_face': target_face,
+                'clockwise_quarter_turns': 0,
+                'hand_id': 'custom_hand',
+                'primitive_id': 'release_upper_layer',
+            },
+        ])
+    return plan
+
+
 class CubeSequenceExecutor(Node):
-    """Expose /cube/execute_solution with hardware execution held disabled."""
+    """Run the declared workflow while keeping physical motion disabled."""
 
     def __init__(self):
         super().__init__('cube_sequence_executor')
+        self._callback_group = ReentrantCallbackGroup()
         status_qos = QoSProfile(
             depth=10,
             reliability=ReliabilityPolicy.RELIABLE,
@@ -52,10 +108,21 @@ class CubeSequenceExecutor(Node):
         )
         self._solutions = OrderedDict()
         self._solutions_lock = Lock()
+        self._execution_busy = False
+        self._execution_busy_lock = Lock()
+        self._active_goal_handle = None
         self._status_publisher = self.create_publisher(
             CubeExecutionStatus, '/cube/execution_status', status_qos)
         self._solution_subscription = self.create_subscription(
             CubeSolution, '/cube/solution', self._on_solution, solution_qos)
+        self._hand_clients = {
+            'leap_hand': ActionClient(
+                self, ExecuteHandPrimitive, '/leap_hand/execute_primitive',
+                callback_group=self._callback_group),
+            'custom_hand': ActionClient(
+                self, ExecuteHandPrimitive, '/custom_hand/execute_primitive',
+                callback_group=self._callback_group),
+        }
         self._action_server = ActionServer(
             self,
             ExecuteCubeSolution,
@@ -63,12 +130,16 @@ class CubeSequenceExecutor(Node):
             execute_callback=self._execute,
             goal_callback=self._goal_request,
             cancel_callback=self._cancel_request,
+            callback_group=self._callback_group,
         )
         self.get_logger().info(
-            'Ready: /cube/solution -> /cube/execute_solution (dry-run only; hardware disabled)')
+            'Ready: /cube/execute_solution; dry-run dispatches semantic steps to both hand endpoints')
 
-    @staticmethod
-    def _goal_request(_goal_request):
+    def _goal_request(self, _goal_request):
+        with self._execution_busy_lock:
+            if self._execution_busy:
+                return GoalResponse.REJECT
+            self._execution_busy = True
         return GoalResponse.ACCEPT
 
     @staticmethod
@@ -85,11 +156,7 @@ class CubeSequenceExecutor(Node):
             self.get_logger().warning(f'Solution rejected: {message}')
             return
 
-        saved = CubeSolution()
-        saved.header = solution.header
-        saved.scan_id = solution.scan_id
-        saved.facelets = solution.facelets
-        saved.moves = list(solution.moves)
+        saved = self._copy_solution(solution)
         with self._solutions_lock:
             self._solutions[saved.scan_id] = saved
             self._solutions.move_to_end(saved.scan_id)
@@ -103,86 +170,201 @@ class CubeSequenceExecutor(Node):
             saved.scan_id, '', '', CubeExecutionStatus.STATE_WAITING_FOR_EXECUTION,
             total_moves=len(saved.moves), message='실행 액션 목표를 기다립니다.')
 
-    def _execute(self, goal_handle):
+    async def _execute(self, goal_handle):
+        self._active_goal_handle = goal_handle
+        try:
+            return await self._execute_goal(goal_handle)
+        finally:
+            self._active_goal_handle = None
+            with self._execution_busy_lock:
+                self._execution_busy = False
+
+    async def _execute_goal(self, goal_handle):
         goal = goal_handle.request
         result = ExecuteCubeSolution.Result()
         result.scan_id = goal.scan_id
         result.dry_run = goal.dry_run
         result.execution_id = str(uuid.uuid4())
+        workflow_id = goal.workflow_id.strip() or _WORKFLOW_ID
 
         with self._solutions_lock:
-            solution = self._solutions.get(goal.scan_id)
-            if solution is not None:
-                solution = self._copy_solution(solution)
+            saved = self._solutions.get(goal.scan_id)
+            solution = self._copy_solution(saved) if saved is not None else None
 
         if solution is None:
-            result.error_code = 'SOLUTION_NOT_FOUND'
-            result.error_message = '요청한 scan_id의 검증된 풀이를 찾지 못했습니다.'
-            self._finish(goal_handle, result, failed=True)
-            self._publish_status(
-                goal.scan_id, result.execution_id, goal.workflow_id,
-                CubeExecutionStatus.STATE_FAILED, error_code=result.error_code,
-                message=result.error_message)
-            return result
+            return self._fail(
+                goal_handle, result, workflow_id, 'SOLUTION_NOT_FOUND',
+                '요청한 scan_id의 검증된 풀이를 찾지 못했습니다.')
 
         self._publish_status(
-            goal.scan_id, result.execution_id, goal.workflow_id,
+            goal.scan_id, result.execution_id, workflow_id,
             CubeExecutionStatus.STATE_VALIDATING, total_moves=len(solution.moves),
             message='실행 목표와 저장된 풀이를 확인합니다.')
         error = validate_solution(solution)
         if error:
-            result.error_code, result.error_message = error
-            self._finish(goal_handle, result, failed=True)
-            self._publish_status(
-                goal.scan_id, result.execution_id, goal.workflow_id,
-                CubeExecutionStatus.STATE_FAILED, total_moves=len(solution.moves),
-                error_code=result.error_code, message=result.error_message)
-            return result
+            return self._fail(goal_handle, result, workflow_id, *error,
+                              total_moves=len(solution.moves))
+
+        if workflow_id != _WORKFLOW_ID:
+            return self._fail(
+                goal_handle, result, workflow_id, 'WORKFLOW_NOT_FOUND',
+                f'지원하지 않는 workflow_id입니다. 사용 가능 값: {_WORKFLOW_ID}',
+                total_moves=len(solution.moves))
 
         if not goal.dry_run:
-            result.error_code = 'EXECUTION_DISABLED'
-            result.error_message = (
-                '실제 구동은 비활성화되어 있습니다. 모터 매핑, primitive 순서, 안전 조건을 '
-                '확정한 뒤 구현해야 합니다.')
-            self._finish(goal_handle, result, failed=True)
-            self._publish_status(
-                goal.scan_id, result.execution_id, goal.workflow_id,
-                CubeExecutionStatus.STATE_FAILED, total_moves=len(solution.moves),
-                error_code=result.error_code, message=result.error_message)
-            return result
+            return self._fail(
+                goal_handle, result, workflow_id, 'EXECUTION_DISABLED',
+                '실제 모터 구동은 비활성화되어 있습니다. 손 pose 추적과 하드웨어 검증이 필요합니다.',
+                total_moves=len(solution.moves))
 
+        plan = compile_workflow(solution.moves)
+        result.completed_steps = 0
+        result.completed_moves = 0
         total_moves = len(solution.moves)
-        for move_index, move in enumerate(solution.moves, start=1):
+        total_steps = len(plan)
+        previous_hand = ''
+
+        for step_index, step in enumerate(plan, start=1):
             if goal_handle.is_cancel_requested:
                 result.error_code = 'CANCELLED'
-                result.error_message = 'dry-run 실행이 취소되었습니다.'
-                self._finish(goal_handle, result, cancelled=True)
+                result.error_message = '실행이 hand primitive 경계에서 취소되었습니다.'
+                goal_handle.canceled()
                 self._publish_status(
-                    goal.scan_id, result.execution_id, goal.workflow_id,
-                    CubeExecutionStatus.STATE_CANCELLED, move_index=move_index,
-                    total_moves=total_moves, current_move=move,
-                    error_code=result.error_code, message=result.error_message)
+                    goal.scan_id, result.execution_id, workflow_id,
+                    CubeExecutionStatus.STATE_CANCELLED,
+                    move_index=step['move_index'], total_moves=total_moves,
+                    current_move=step['cube_move'], step_index=step_index - 1,
+                    total_steps=total_steps, error_code=result.error_code,
+                    message=result.error_message)
                 return result
 
+            if previous_hand and previous_hand != step['hand_id']:
+                handoff_status = self._publish_status(
+                    goal.scan_id, result.execution_id, workflow_id,
+                    CubeExecutionStatus.STATE_HANDOFF,
+                    move_index=step['move_index'], total_moves=total_moves,
+                    current_move=step['cube_move'], step_index=step_index,
+                    total_steps=total_steps, hand_id='', primitive_id='',
+                    message=f"{previous_hand}에서 {step['hand_id']}로 handoff합니다.")
+                self._publish_feedback(goal_handle, handoff_status)
+
             status = self._publish_status(
-                goal.scan_id, result.execution_id, goal.workflow_id,
-                CubeExecutionStatus.STATE_EXECUTING, move_index=move_index,
-                total_moves=total_moves, current_move=move,
-                message='이동 토큰을 dry-run으로 순회합니다. 손 primitive는 아직 전개하지 않습니다.')
-            feedback = ExecuteCubeSolution.Feedback()
-            feedback.status = status
-            goal_handle.publish_feedback(feedback)
-            result.completed_moves = move_index
+                goal.scan_id, result.execution_id, workflow_id,
+                CubeExecutionStatus.STATE_EXECUTING,
+                move_index=step['move_index'], total_moves=total_moves,
+                current_move=step['cube_move'], step_index=step_index,
+                total_steps=total_steps, hand_id=step['hand_id'],
+                primitive_id=step['primitive_id'],
+                message='hand primitive dry-run을 실행합니다. 모터 명령은 비활성화되어 있습니다.')
+            self._publish_feedback(goal_handle, status)
+
+            hand_result, error_message = await self._dispatch_step(
+                goal_handle, goal, result, step_index, step)
+            if hand_result is None or not hand_result.success:
+                if goal_handle.is_cancel_requested:
+                    result.success = False
+                    result.error_code = 'CANCELLED'
+                    result.error_message = '실행이 hand primitive 경계에서 취소되었습니다.'
+                    goal_handle.canceled()
+                    self._publish_status(
+                        goal.scan_id, result.execution_id, workflow_id,
+                        CubeExecutionStatus.STATE_CANCELLED,
+                        move_index=step['move_index'], total_moves=total_moves,
+                        current_move=step['cube_move'], step_index=step_index,
+                        total_steps=total_steps, hand_id=step['hand_id'],
+                        primitive_id=step['primitive_id'],
+                        error_code=result.error_code,
+                        message=result.error_message)
+                    return result
+                error_code = (
+                    hand_result.error_code if hand_result is not None
+                    else 'HAND_NOT_READY')
+                message = (
+                    hand_result.error_message if hand_result is not None
+                    else error_message)
+                return self._fail(
+                    goal_handle, result, workflow_id, error_code, message,
+                    move_index=step['move_index'], total_moves=total_moves,
+                    current_move=step['cube_move'], step_index=step_index,
+                    total_steps=total_steps, hand_id=step['hand_id'],
+                    primitive_id=step['primitive_id'])
+
+            result.completed_steps = step_index
+            if step['primitive_id'] == 'rotate_upper_layer':
+                result.completed_moves = step['move_index']
+            previous_hand = step['hand_id']
 
         result.success = True
         result.error_code = ''
         result.error_message = (
-            '입력과 solver 이동 순서를 확인했습니다. 하드웨어 구동과 hand primitive 실행은 하지 않았습니다.')
-        self._finish(goal_handle, result)
-        self._publish_status(
-            goal.scan_id, result.execution_id, goal.workflow_id,
+            '풀이를 hand primitive 단계로 전개하고 두 adapter의 dry-run 응답을 확인했습니다. '
+            '물리 동작은 하지 않았습니다.')
+        goal_handle.succeed()
+        final_status = self._publish_status(
+            goal.scan_id, result.execution_id, workflow_id,
             CubeExecutionStatus.STATE_COMPLETED, move_index=total_moves,
-            total_moves=total_moves, message=result.error_message)
+            total_moves=total_moves, step_index=total_steps,
+            total_steps=total_steps, message=result.error_message)
+        self._publish_feedback(goal_handle, final_status)
+        return result
+
+    async def _dispatch_step(
+            self, parent_goal_handle, parent_goal, parent_result, step_index, step):
+        client = self._hand_clients[step['hand_id']]
+        if not client.wait_for_server(timeout_sec=0.5):
+            return None, f"{step['hand_id']} action server에 연결할 수 없습니다."
+
+        request = ExecuteHandPrimitive.Goal()
+        request.scan_id = parent_goal.scan_id
+        request.execution_id = parent_result.execution_id
+        request.move_index = step['move_index']
+        request.step_index = step_index
+        request.cube_move = step['cube_move']
+        request.target_face = step['target_face']
+        request.clockwise_quarter_turns = step['clockwise_quarter_turns']
+        request.primitive_id = step['primitive_id']
+        request.dry_run = True
+
+        try:
+            child_goal = await client.send_goal_async(request)
+            if not child_goal.accepted:
+                return None, f"{step['hand_id']}가 primitive 요청을 거부했습니다."
+
+            result_future = child_goal.get_result_async()
+            cancellation = {'sent': False}
+
+            def cancel_child_if_requested():
+                if parent_goal_handle.is_cancel_requested and not cancellation['sent']:
+                    cancellation['sent'] = True
+                    child_goal.cancel_goal_async()
+
+            cancel_timer = self.create_timer(
+                0.05, cancel_child_if_requested, callback_group=self._callback_group)
+            try:
+                wrapped_result = await result_future
+            finally:
+                cancel_timer.cancel()
+                self.destroy_timer(cancel_timer)
+            return wrapped_result.result, ''
+        except Exception as exc:  # ROS action transport errors become action results.
+            return None, f"{step['hand_id']} action 오류: {exc}"
+
+    def _fail(
+            self, goal_handle, result, workflow_id, error_code, message,
+            move_index=0, total_moves=0, current_move='', step_index=0,
+            total_steps=0, hand_id='', primitive_id=''):
+        result.success = False
+        result.error_code = error_code
+        result.error_message = message
+        goal_handle.abort()
+        status = self._publish_status(
+            result.scan_id, result.execution_id, workflow_id,
+            CubeExecutionStatus.STATE_FAILED, move_index=move_index,
+            total_moves=total_moves, current_move=current_move,
+            step_index=step_index, total_steps=total_steps,
+            hand_id=hand_id, primitive_id=primitive_id,
+            error_code=error_code, message=message)
+        self._publish_feedback(goal_handle, status)
         return result
 
     @staticmethod
@@ -195,17 +377,15 @@ class CubeSequenceExecutor(Node):
         return copied
 
     @staticmethod
-    def _finish(goal_handle, result, failed=False, cancelled=False):
-        if cancelled:
-            goal_handle.canceled()
-        elif failed:
-            goal_handle.abort()
-        else:
-            goal_handle.succeed()
+    def _publish_feedback(goal_handle, status):
+        feedback = ExecuteCubeSolution.Feedback()
+        feedback.status = status
+        goal_handle.publish_feedback(feedback)
 
     def _publish_status(
             self, scan_id, execution_id, workflow_id, state, move_index=0,
-            total_moves=0, current_move='', error_code='', message=''):
+            total_moves=0, current_move='', step_index=0, total_steps=0,
+            hand_id='', primitive_id='', error_code='', message=''):
         status = CubeExecutionStatus()
         status.header.stamp = self.get_clock().now().to_msg()
         status.scan_id = scan_id
@@ -215,10 +395,10 @@ class CubeSequenceExecutor(Node):
         status.move_index = move_index
         status.total_moves = total_moves
         status.current_move = current_move
-        status.step_index = 0
-        status.total_steps = 0
-        status.hand_id = ''
-        status.primitive_id = ''
+        status.step_index = step_index
+        status.total_steps = total_steps
+        status.hand_id = hand_id
+        status.primitive_id = primitive_id
         status.error_code = error_code
         status.message = message
         self._status_publisher.publish(status)
