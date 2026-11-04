@@ -113,7 +113,39 @@ ros2 pkg executables custom_hand_control
 
 LEAP Hand는 큐브 아래에서 지지·방향 조정을 하고, Custom Hand는 위에서 학습된 손가락 파지와 손목 회전을 담당하는 구조입니다. 사용자가 제공한 모터 정보는 Custom 손가락 Dynamixel XL330-M288-T, Custom 손목 Feetech STS3215, LEAP Hand Dynamixel XC330-M288-T입니다.
 
-아직 카메라와 pose 입력이 정해지지 않았고, 논리 면 `URFDLB`와 로봇 좌표계의 변환, 실제 조립 상태에 따른 관절·모터 매핑, 모델 입력으로 들어갈 pose, 손목 목표각·회전 부호, primitive 완료 판정과 handoff 안전 조건이 확정되지 않았습니다. 따라서 현재 `target_face`와 회전량은 논리적 계약 값이며 실제 모터 명령으로 변환되지 않습니다. 이 정보와 안전한 정지·실패 복구 절차를 확정하고 각 adapter에 연결하기 전까지 실제 구동을 활성화하지 않습니다.
+아직 카메라와 pose 입력이 정해지지 않았고, 논리 면 `URFDLB`와 로봇 좌표계의 변환, 실제 조립 상태에 따른 관절·모터 매핑, 모델 입력으로 들어갈 pose, 손목 목표각·회전 부호, primitive 완료 판정과 handoff 안전 조건이 확정되지 않았습니다. 따라서 현재 `target_face`와 회전량은 논리적 계약 값이며 실제 모터 명령으로 변환되지 않습니다.
+
+## Calibration 설정 초안 및 구동 차단
+
+`cube_execution/config/hardware_calibration.example.json`은 실제 calibration 데이터를 채우기 위한 JSON 형식 초안입니다. 현재 알려지지 않은 포트·속도·motor ID·frame 이름·모델 경로·검증 결과는 빈 문자열, `null`, 빈 목록 또는 `false`로 남겨 두었습니다. 이 파일은 예시이며 현재 장치와 모델의 실제 calibration을 포함하지 않습니다.
+
+`cube_execution.calibration` 검증기는 다음 항목을 확인합니다.
+
+- schema 버전과 문서 전체, pose, frame/transform, 손별 motor 그룹, 정책, 안전 항목의 명시적 `verified: true` 표시
+- pose topic·type·frame·단위·quaternion 형식과 양수 pose age 한도
+- 각 프레임 이름, motor model, port·양수 baud rate·중복 없는 motor ID 목록
+- 각 motor ID와 1:1로 대응하는 joint mapping: 이름, ID, 방향(`-1` 또는 `1`), zero offset, 단위, 유효 범위
+- LEAP/Custom 정책 경로의 실제 존재와 observation schema 확인 표시
+- 비상정지, 정지 방식, joint/workspace 한계, 완료 feedback, handoff 안전 검증 표시
+
+검증기는 JSON 기록의 형식과 필수 표시를 검사합니다. 장치에 실제 연결하거나 pose 측정, 모델 입출력, 안전 동작을 실험하는 기능은 아닙니다. `verified` 표시와 근거를 채우는 책임은 실제 측정·시험을 수행한 사용자에게 있습니다.
+
+검증하려면 예시를 사용자 로컬 설정 위치에 복사한 뒤 checker를 실행합니다. 미완성 예시에서 오류 목록이 출력되는 것이 정상입니다.
+
+```powershell
+$calibrationPath = Join-Path $env:LOCALAPPDATA 'middleware-bridge\hardware_calibration.json'
+New-Item -ItemType Directory -Force (Split-Path $calibrationPath) | Out-Null
+Copy-Item .\src\control\cube_execution\config\hardware_calibration.example.json $calibrationPath
+ros2 run cube_execution cube_calibration_check $calibrationPath
+```
+
+executor는 시작 시 `calibration_file` ROS 매개변수를 읽습니다. 기본값은 비어 있으므로 실제 실행 목표는 `CALIBRATION_INCOMPLETE`로 거부됩니다. 파일을 지정해 calibration 검증이 통과하더라도 motor driver와 실제 adapter 동작이 아직 구현되지 않았으므로 `dry_run=false`는 `EXECUTION_DISABLED`로 계속 거부됩니다. calibration 파일만으로 실제 구동이 활성화되지는 않습니다.
+
+```powershell
+ros2 run cube_execution cube_sequence_executor --ros-args -p "calibration_file:=$calibrationPath"
+```
+
+실제 구동은 카메라·pose provider와 calibration을 측정·검증하고, 장치별 driver, pose 기반 목표 변환, 완료 feedback, 검증된 정지·복구 동작을 adapter에 구현한 뒤에만 별도 작업으로 활성화할 수 있습니다.
 
 ## Pose·좌표계·안전 계약
 
@@ -170,4 +202,4 @@ Kociemba 논리 면은 `U, R, F, D, L, B`로 식별합니다. calibration은 각
 - 실패 뒤에는 operator 확인, 큐브 pose 재측정, 필요 시 새 `scan_id`로 재인식·재풀이를 거친 다음 별도 실행 목표를 받아야 합니다. 기존 action을 자동 재시도하거나 중단 지점부터 이어서 실행하지 않습니다.
 - 비상정지 수단과 접근 위치, 토크·속도 제한, 작업 공간과 사람 접근 제한, 수동 회수 절차가 확인되지 않으면 실제 모터 구동을 시작하지 않습니다.
 
-위 계약을 실제 값으로 채우기 위한 다음 자료는 카메라/pose provider의 선택, 양 손과 손목의 실물 조립 frame·motor ID·통신값, 정책별 실기 observation/action 보정, 하드웨어 정지 방식입니다. 이 자료가 확보되면 별도의 calibration 설정과 adapter 완료 판정을 구현할 수 있습니다.
+위 계약을 실제 값으로 채우기 위한 자료는 카메라/pose provider의 선택, 양 손과 손목의 실물 조립 frame·motor ID·통신값, 정책별 실기 observation/action 보정, 하드웨어 정지 방식입니다. 설정 파일과 형식 검증기는 준비됐지만 실제 calibration 기록, sensor freshness 검사, pose 기반 목표 변환, driver 및 adapter 완료 판정은 아직 구현되지 않았습니다.

@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "verified": false,
+  "verified_by": "",
+  "verified_at_utc": "",
+  "pose": {
+    "verified": false,
+    "topic": "",
+    "message_type": "",
+    "frame_id": "",
+    "position_unit": "m",
+    "orientation_convention": "quaternion_xyzw",
+    "max_pose_age_ms": null
+  },
+  "frames": {
+    "verified": false,
+    "robot_base_frame": "",
+    "cube_frame": "",
+    "leap_base_frame": "",
+    "custom_base_frame": "",
+    "custom_wrist_frame": "",
+    "transforms_verified": false
+  },
+  "motors": {
+    "leap": {
+      "verified": false,
+      "model": "Dynamixel XC330-M288-T",
+      "port": "",
+      "baud_rate": null,
+      "motor_ids": [],
+      "joint_mapping_verified": false,
+      "joint_mapping": []
+    },
+    "custom_fingers": {
+      "verified": false,
+      "model": "Dynamixel XL330-M288-T",
+      "port": "",
+      "baud_rate": null,
+      "motor_ids": [],
+      "joint_mapping_verified": false,
+      "joint_mapping": []
+    },
+    "custom_wrist": {
+      "verified": false,
+      "model": "Feetech STS3215",
+      "port": "",
+      "baud_rate": null,
+      "motor_ids": [],
+      "joint_mapping_verified": false,
+      "joint_mapping": []
+    }
+  },
+  "policies": {
+    "leap": {
+      "verified": false,
+      "model_path": "",
+      "observation_schema_verified": false
+    },
+    "custom_hand": {
+      "verified": false,
+      "model_path": "",
+      "observation_schema_verified": false
+    }
+  },
+  "safety": {
+    "emergency_stop_verified": false,
+    "stop_behavior_verified": false,
+    "joint_limits_verified": false,
+    "workspace_limits_verified": false,
+    "completion_feedback_verified": false,
+    "handoff_verified": false
+  }
+}

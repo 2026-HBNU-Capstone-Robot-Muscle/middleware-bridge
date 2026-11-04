@@ -10,6 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/config',
+            ['config/hardware_calibration.example.json']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -20,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             'cube_sequence_executor = cube_execution.executor_node:main',
+            'cube_calibration_check = cube_execution.calibration:main',
         ],
     },
 )

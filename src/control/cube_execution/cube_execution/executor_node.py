@@ -15,6 +15,7 @@ from rclpy.action import (
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from cube_execution.calibration import validate_calibration_file
 from system_interfaces.action import ExecuteCubeSolution, ExecuteHandPrimitive
 from system_interfaces.msg import CubeExecutionStatus, CubeSolution
 
@@ -111,6 +112,13 @@ class CubeSequenceExecutor(Node):
         self._execution_busy = False
         self._execution_busy_lock = Lock()
         self._active_goal_handle = None
+        self.declare_parameter('calibration_file', '')
+        calibration_file = self.get_parameter('calibration_file').value
+        self._calibration_errors = validate_calibration_file(calibration_file)
+        if self._calibration_errors:
+            self.get_logger().warning(
+                'Physical calibration gate is closed: '
+                + '; '.join(self._calibration_errors[:5]))
         self._status_publisher = self.create_publisher(
             CubeExecutionStatus, '/cube/execution_status', status_qos)
         self._solution_subscription = self.create_subscription(
@@ -212,9 +220,14 @@ class CubeSequenceExecutor(Node):
                 total_moves=len(solution.moves))
 
         if not goal.dry_run:
+            if self._calibration_errors:
+                return self._fail(
+                    goal_handle, result, workflow_id, 'CALIBRATION_INCOMPLETE',
+                    '실제 구동 calibration 검증이 완료되지 않았습니다: '
+                    + '; '.join(self._calibration_errors))
             return self._fail(
                 goal_handle, result, workflow_id, 'EXECUTION_DISABLED',
-                '실제 모터 구동은 비활성화되어 있습니다. 손 pose 추적과 하드웨어 검증이 필요합니다.',
+                'calibration 기록은 통과했지만 실제 모터 드라이버와 안전 정지 adapter는 아직 구현되지 않았습니다.',
                 total_moves=len(solution.moves))
 
         plan = compile_workflow(solution.moves)
