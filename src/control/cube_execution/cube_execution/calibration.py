@@ -1,9 +1,11 @@
 """Fail-closed validation for the physical hardware calibration record."""
 
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
+import re
 
 
 _REQUIRED_VERIFIED_FLAGS = (
@@ -40,7 +42,9 @@ _REQUIRED_TEXT_FIELDS = (
     ('motors', 'custom_fingers', 'port'),
     ('motors', 'custom_wrist', 'port'),
     ('policies', 'leap', 'model_path'),
+    ('policies', 'leap', 'sha256'),
     ('policies', 'custom_hand', 'model_path'),
+    ('policies', 'custom_hand', 'sha256'),
 )
 
 _REQUIRED_POSITIVE_NUMBERS = (
@@ -154,8 +158,15 @@ def validate_calibration_file(file_path):
             resolved_model_path = Path(model_path).expanduser()
             if not resolved_model_path.is_absolute():
                 resolved_model_path = path.parent / resolved_model_path
-            if not resolved_model_path.exists():
-                errors.append(f'policies.{policy}.model_path: 파일 또는 디렉토리를 찾을 수 없음')
+            if not resolved_model_path.is_file():
+                errors.append(f'policies.{policy}.model_path: 모델 파일을 찾을 수 없음')
+            else:
+                recorded_hash = _read_path(document, ('policies', policy, 'sha256'))
+                if not isinstance(recorded_hash, str) or not re.fullmatch(
+                        r'[0-9a-fA-F]{64}', recorded_hash):
+                    errors.append(f'policies.{policy}.sha256: SHA-256 64자리 hex 필요')
+                elif _sha256_file(resolved_model_path) != recorded_hash.lower():
+                    errors.append(f'policies.{policy}.sha256: 모델 파일과 일치하지 않음')
 
     pose = document.get('pose', {})
     if isinstance(pose, dict) and pose.get('orientation_convention') != 'quaternion_xyzw':
@@ -172,6 +183,14 @@ def validate_calibration_file(file_path):
 def _is_number(value):
     return (not isinstance(value, bool) and isinstance(value, (int, float))
             and math.isfinite(value))
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open('rb') as model_file:
+        for chunk in iter(lambda: model_file.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _read_path(document, field_path):

@@ -10,6 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/models',
+            ['models/finger_robot_ppo_best.zip']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -25,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'custom_hand_primitive_server = custom_hand_control.primitive_server:main',
+            'custom_hand_policy_shadow = custom_hand_control.policy_shadow_node:main',
         ],
     },
 )

@@ -2,7 +2,7 @@
 
 `cube_execution`은 `/cube/solution`을 받아 실행 요청을 기다리고, 명시적인 ROS 2 액션 목표를 받으면 Kociemba 풀이 토큰을 두 손의 추상 동작으로 전개합니다. `leap_hand_control`과 `custom_hand_control`은 각각 손 primitive 액션 서버를 제공합니다.
 
-현재 구현은 **dry-run 전용**입니다. 액션 요청과 단계 전달은 검증하지만 LEAP Hand, Dynamixel, Feetech 모터나 학습 정책을 구동하지 않습니다.
+현재 primitive 동작은 **dry-run 전용**입니다. LEAP와 Custom 정책의 ROS shadow subscriber 및 추론 출력 토픽을 추가했지만, 실제 카메라 pose·모터 상태 publisher는 아직 없습니다. 추론 출력도 모터 driver로 연결되지 않으므로 학습 정책으로 손을 움직이지 않습니다.
 
 ## ROS 인터페이스
 
@@ -13,6 +13,8 @@
 | `/cube/execution_status` | `system_interfaces/msg/CubeExecutionStatus` | 풀이 수신, 대기, 검증, handoff, primitive 진행, 완료·실패·취소를 발행합니다. |
 | `/leap_hand/execute_primitive` | `system_interfaces/action/ExecuteHandPrimitive` | 하단 LEAP Hand의 방향 조정·지지 primitive 요청을 받습니다. |
 | `/custom_hand/execute_primitive` | `system_interfaces/action/ExecuteHandPrimitive` | 상단 Custom Hand의 파지·레이어 회전·해제 primitive 요청을 받습니다. |
+| `/leap_hand/policy_input` → `/leap_hand/policy_action` | `LeapPolicyInput` → `HandPolicyAction` | LEAP 센서 입력을 조립해 108→16 shadow 추론을 수행합니다. |
+| `/custom_hand/policy_input` → `/custom_hand/policy_action` | `CustomPolicyInput` → `HandPolicyAction` | 보정된 Custom 상태에서 8→4 shadow 추론을 수행합니다. |
 
 `ExecuteHandPrimitive` 목표에는 `scan_id`, `execution_id`, 이동·단계 인덱스, 원래의 `cube_move`, 논리 좌표계의 `target_face`, `clockwise_quarter_turns`, `primitive_id`, `dry_run`이 포함됩니다. 회전 방향은 `target_face` 바깥에서 면을 바라볼 때 시계 방향을 양수로 표현합니다. 회전 primitive의 값은 `1`, `-1`, `2`이며 그 외 primitive는 `0`입니다.
 
@@ -36,6 +38,49 @@
 - 구현상 두 손 서버는 입력 필드를 검증하고 `dry_run=true` 요청에 성공 응답을 보냅니다. `dry_run=false`는 실행 노드와 손 어댑터가 거부합니다.
 - 첫 runtime dry-run에서 발생한 `no running event loop` 문제를 수정하고 네 패키지를 다시 빌드했습니다.
 - 사용자가 Windows에서 세 노드와 액션 클라이언트를 실행해 `/cube/solution` 입력부터 두 손 액션 응답까지 확인했습니다. 3개 이동의 결과는 `success: true`, `completed_moves: 3`, `completed_steps: 12`였습니다. 확인 범위는 dry-run이며 실제 모터 구동은 아닙니다.
+
+## LEAP 정책 소프트웨어 어댑터
+
+`leap_hand_control`에는 참조 배포물과 같은 NumPy MLP 추론 형식을 읽는 `LeapPolicyAdapter`가 있습니다. LEAP 정책 `policy_np.npz`는 참조 디렉토리에서 middleware-bridge의 `src/control/leap_hand_control/models/policy_np.npz`로 복사했고, SHA-256은 `DC220D146BC5532C4AE09907C6D6BBC887335389D215AFAAFB69EEAB679560E7`입니다. Windows 빌드 설치 시 패키지 share의 `models` 아래에도 포함됩니다.
+
+어댑터는 108개 관측값을 정규화한 뒤 은닉층 ReLU와 마지막 층의 첫 16개 출력에 `tanh`를 적용합니다. 이 규약은 `right_rl_with_mujoco/deploy/policy_np.py`의 추론 경로를 따릅니다. 동작 중 모터 API나 Dynamixel SDK를 불러오지 않습니다.
+
+기본 LEAP primitive 서버를 실행하면 설치된 정책 파일을 열어 네트워크 모양과 가중치가 유효한지 확인합니다.
+
+```powershell
+ros2 run leap_hand_control leap_hand_primitive_server
+```
+
+primitive 서버 로그에 `LEAP 정책 파일 형식과 108→16 추론기를 준비했습니다`가 나타나면 모델 로딩까지 된 것입니다. 이것은 모델 추론 결과나 하드웨어 동작 검증은 아닙니다. 추론 shadow node는 `LeapPolicyInput` subscriber를 갖지만 카메라 pose와 LEAP joint state를 해당 계약으로 발행하는 upstream node는 없습니다. primitive 액션 목표에도 관측 데이터가 없습니다. 그래서 `dry_run=false` 요청은 정책이 로드되어도 `POSE_SOURCE_UNAVAILABLE`로 거부됩니다. 상위 `cube_sequence_executor`도 실제 구동을 계속 차단합니다.
+
+예시 calibration JSON의 `policies.leap.model_path`에는 비워 둔 경로에 사용자의 로컬 절대 경로를 기록하고, `sha256`은 파일을 교체할 때만 실제 값에 맞춰 갱신합니다. 모델 파일을 읽을 수 있어도 `verified`와 `observation_schema_verified`는 실측·입출력 검증 전까지 `false`로 둡니다.
+
+## 정책 ROS 입력 계약과 Shadow 추론
+
+두 정책의 센서·상태 입력을 ROS 메시지로 명시하고, 계산 결과는 모터 드라이버가 아닌 `HandPolicyAction` 토픽으로 발행합니다. 두 출력 메시지는 `shadow_only: true`입니다.
+
+| 토픽 | 입력 타입 | 의미 |
+|---|---|---|
+| `/leap_hand/policy_input` | `system_interfaces/msg/LeapPolicyInput` | timestamp가 있는 큐브 pose, LEAP palm pose, 16개 LEAP 관절 상태, 직전 명령 관절각, 목표 quaternion을 한 샘플로 전달합니다. |
+| `/leap_hand/policy_action` | `system_interfaces/msg/HandPolicyAction` | LEAP 시뮬 관절 순서 16개에 대한 정규화 정책 출력입니다. 모터에 전달되지 않습니다. |
+| `/custom_hand/policy_input` | `system_interfaces/msg/CustomPolicyInput` | Custom 정책 좌표계의 손가락 4개 위치와 속도를 전달합니다. 순서는 `right, front, left, back`입니다. |
+| `/custom_hand/policy_action` | `system_interfaces/msg/HandPolicyAction` | 손가락 순서의 정규화 출력 4개입니다. 손가락 위치 변환이나 손목 Feetech 제어를 수행하지 않습니다. |
+
+LEAP 입력의 `cube_pose`, `palm_pose`와 `leap_joint_state` timestamp는 모두 유효하고 최근 값이어야 합니다. 입력 생산자는 구성요소 측정값을 같은 샘플로 동기화해야 합니다. 두 pose의 `header.frame_id`는 설정한 `world_frame`과 같아야 하며 pose 위치 단위는 m, quaternion 순서는 ROS 표준 x,y,z,w입니다. `joint_state.name`은 참조 배포 코드의 16개 이름을 포함해야 하고 위치는 rad 단위입니다. `commanded_joint_positions`는 같은 순서의 직전 명령각(rad)이며 `goal_orientation`은 목표 cube quaternion입니다. 입력 조립기는 참조 순서로 관절을 재배열하고 108차원 관측의 이력을 구성합니다. source deployment의 150 ms freshness 기준을 적용합니다. 목표 quaternion과 Kociemba 면 문자의 대응은 아직 보정·연결되지 않았으므로 이 입력의 생산자가 검증된 변환을 제공해야 합니다.
+
+108개 값의 순서는 관절각 16, 관절오차 이력 48, 손바닥-큐브 위치오차 이력 9, cube 자세오차 이력 18, 직전 행동 16, 자세오차 scalar 1입니다. 이력은 최근 샘플부터 저장합니다.
+
+```powershell
+ros2 interface show system_interfaces/msg/LeapPolicyInput
+ros2 interface show system_interfaces/msg/CustomPolicyInput
+ros2 interface show system_interfaces/msg/HandPolicyAction
+ros2 run leap_hand_control leap_policy_shadow --ros-args -p world_frame:=YOUR_MEASURED_FRAME
+ros2 run custom_hand_control custom_hand_policy_shadow
+```
+
+`YOUR_MEASURED_FRAME`은 카메라/로봇 보정으로 실제 확인한 공통 프레임 이름으로 바꿉니다. 현재 middleware에는 `/cube/pose`, palm pose 또는 LEAP `/joint_states` publisher와 정책 입력 aggregator가 없습니다. 따라서 위 subscriber는 데이터 계약을 받도록 구현된 상태이고, 위 계약으로 동기화된 `LeapPolicyInput`과 보정된 `CustomPolicyInput`을 발행하는 실제 sensor/driver publisher를 추가해야 정책 출력이 나옵니다. Custom 입력의 8개 값은 참고 `core.observation`의 motor-tick 보정 이후 값이어야 합니다. 그 mapping 미검증 상태에서는 임의로 변환하지 않습니다.
+
+Custom 모델은 Stable-Baselines3 PPO actor의 8→64→64→4 구조를 CPU에서 weights-only로 읽습니다. 기본 Tanh 은닉층과 action-space `[-1,1]` clipping을 적용합니다. 정책 후보 파일은 middleware 내부에 복사했지만 참조 설정의 hash와 일치하지 않으므로, 이 shadow 추론 결과는 선택 checkpoint를 확정하거나 실기 동작을 입증하지 않습니다. 네 hand policy 출력 토픽 모두 실제 모터 구동과 분리되어 있습니다.
 
 빌드 중 `system_interfaces`에서 CMake deprecation 및 policy 경고가 출력될 수 있습니다. 이는 경고이며 빌드가 `Finished`로 끝나면 그 경고만으로 패키지 실패를 의미하지 않습니다. 빌드 결과의 `Summary`에서 실패 패키지가 없는지도 확인합니다.
 
@@ -113,11 +158,22 @@ ros2 pkg executables custom_hand_control
 
 LEAP Hand는 큐브 아래에서 지지·방향 조정을 하고, Custom Hand는 위에서 학습된 손가락 파지와 손목 회전을 담당하는 구조입니다. 사용자가 제공한 모터 정보는 Custom 손가락 Dynamixel XL330-M288-T, Custom 손목 Feetech STS3215, LEAP Hand Dynamixel XC330-M288-T입니다.
 
-아직 카메라와 pose 입력이 정해지지 않았고, 논리 면 `URFDLB`와 로봇 좌표계의 변환, 실제 조립 상태에 따른 관절·모터 매핑, 모델 입력으로 들어갈 pose, 손목 목표각·회전 부호, primitive 완료 판정과 handoff 안전 조건이 확정되지 않았습니다. 따라서 현재 `target_face`와 회전량은 논리적 계약 값이며 실제 모터 명령으로 변환되지 않습니다.
+아래는 참고 디렉토리와 현재 코드에서 파일·설정으로 확인한 내용입니다. 참고 설정에서 가져온 후보 값은 현재 조립 장치의 calibration으로 간주하지 않으며 검증 전까지 `verified: false`로 둡니다.
+
+| 대상 | 확인된 자료 | 현재 판정 |
+|---|---|---|
+| Windows 카메라 | 이전 실험에서 `camera_index=0`, `dshow`, 1280×720, 30 FPS로 영상 취득과 여섯 면 풀이를 확인했습니다. 카메라 제조사·모델·장치 식별자는 기록되지 않았습니다. | 동작 설정은 확인됐지만 장치 식별과 6-DoF pose 출력은 미확인입니다. 현재 detector는 `/camera/image_raw`에서 OBB 검출 후 `/cube/face_detections`를 발행하며 pose topic은 발행하지 않습니다. |
+| 큐브 YOLO | `src/perception/cube_detection/model/cube-detector.pt`가 존재합니다. SHA-256은 `C1403D43D654A37D21351A5F5124AABC07C1BDB921E54E5FBBC899304BB409FB`입니다. | OBB 검출용 모델입니다. 모델 존재와 검출 기능은 큐브 pose 보정 완료를 뜻하지 않습니다. |
+| Custom Hand 정책 | `sim2real/finger_robot_ppo_best.zip`을 `src/control/custom_hand_control/models/finger_robot_ppo_best.zip`로 복사했습니다. 실제 파일 SHA-256은 `5B9A3F36B348FA7FCC16370432E9F5CE476091CBEE38431686166FFABABD426B`입니다. | ZIP 메타데이터는 observation(8), action(4), actor 층 크기 8→64→64→4를 확인합니다. 참고 설정에 기록된 해시 `be90522e32676f1e815267e8ce962eeb9e404ebef55d97d3fca37505a84478f9`와 달라 같은 checkpoint로 확정할 수 없습니다. 복사본은 후보이며 calibration은 미검증입니다. |
+| Custom Hand 모터 설정 | `left-rl-with-mujoco/sim2real/config.provisional.json`에는 `COM8`, 1,000,000 baud, XL330 ID 1–4, 손가락 순서 right/front/left/back → ID 4/1/2/3이 적혀 있습니다. 사용자는 해당 코드로 실작동을 확인했다고 보고했습니다. | 예시 JSON에 포트·baud·ID를 참고 후보로 반영했습니다. 단, 참고 설정의 mapping, 모터별 calibration·limits, `hardware_validated` 표시는 여전히 미검증입니다. 손목 Feetech 설정은 이 디렉토리에 없습니다. |
+| LEAP 실작동 코드 | `right_rl_with_mujoco/deploy/policy_runner.py`는 기본 실행에서 `LeapHW`를 만들고 제어 루프에서 `write_sim(q_cmd)`를 호출합니다. `leap_hw.py`는 Dynamixel 연결, 토크 활성화·해제, 상태 읽기와 위치 쓰기를 구현합니다. | **실제 모터를 쓰는 배포 코드가 있습니다.** 따라서 임의 motor ID를 만들지 않고 소스의 ID 1–16을 예시 JSON에 반영했습니다. 현재 middleware LEAP adapter 자체는 dry-run입니다. |
+| LEAP 정책·모터·pose 설정 | 참고 정책은 `right_rl_with_mujoco/policy/policy_np.npz` (SHA-256 `DC220D146BC5532C4AE09907C6D6BBC887335389D215AFAAFB69EEAB679560E7`)이며 108차원 관측 조립기를 사용합니다. `leap_hw.py`의 기본 포트는 Linux `/dev/ttyUSB0`, baud는 3,000,000입니다. 회전 관절 ID 1, 5, 9의 부호는 미검증입니다. 정책 실행기는 `--cams`에 카메라 보정 파일을 요구합니다. | motor ID와 Linux 기준값을 참조로 기록했습니다. `/dev/ttyUSB0`는 Windows COM 포트로 사용할 수 없으므로 실제 Windows port·baud는 비워 두었습니다. 해당 camera calibration 파일도 middleware에 연결되어 있지 않습니다. |
+
+따라서 현재 확정 가능한 실물 모터 포트/ID와 큐브 pose 입력은 없습니다. 추가 수집 항목은 카메라 제조사·모델 또는 pose provider, pose topic/type/frame, 실제 양손의 모터 응답 ID·model number·COM 포트·baud rate, 선택한 policy artifact 경로와 SHA-256, 조립 frame 및 정지 방식입니다. 현재 `target_face`와 회전량은 논리적 계약 값이며 실제 모터 명령으로 변환되지 않습니다.
 
 ## Calibration 설정 초안 및 구동 차단
 
-`cube_execution/config/hardware_calibration.example.json`은 실제 calibration 데이터를 채우기 위한 JSON 형식 초안입니다. 현재 알려지지 않은 포트·속도·motor ID·frame 이름·모델 경로·검증 결과는 빈 문자열, `null`, 빈 목록 또는 `false`로 남겨 두었습니다. 이 파일은 예시이며 현재 장치와 모델의 실제 calibration을 포함하지 않습니다.
+`cube_execution/config/hardware_calibration.example.json`은 실제 calibration 데이터를 채우기 위한 JSON 형식 초안입니다. Custom 손가락과 LEAP 모터 ID, Custom COM8/baud 값은 참고 설정에서 가져온 후보로 미리 적고 `verified`는 `false`로 유지했습니다. LEAP의 Linux port는 `reference_port`에만 두고 실제 `port`는 비워 두었습니다. Custom 손목·frame·pose·모델 경로와 검증 결과 등 미확정 값은 빈 문자열, `null`, 빈 목록 또는 `false`입니다. 두 정책 후보 파일의 SHA-256을 기록했지만 `model_path`는 각 로컬 설정에 맞춰 채워야 합니다. Custom 파일은 참고 설정의 기록 해시와 다르므로 선택 checkpoint가 맞는지도 확인이 필요합니다. 이 파일은 현재 장치와 모델의 완료된 calibration이 아닙니다.
 
 `cube_execution.calibration` 검증기는 다음 항목을 확인합니다.
 
@@ -125,7 +181,7 @@ LEAP Hand는 큐브 아래에서 지지·방향 조정을 하고, Custom Hand는
 - pose topic·type·frame·단위·quaternion 형식과 양수 pose age 한도
 - 각 프레임 이름, motor model, port·양수 baud rate·중복 없는 motor ID 목록
 - 각 motor ID와 1:1로 대응하는 joint mapping: 이름, ID, 방향(`-1` 또는 `1`), zero offset, 단위, 유효 범위
-- LEAP/Custom 정책 경로의 실제 존재와 observation schema 확인 표시
+- LEAP/Custom 정책 파일 경로와 기록한 SHA-256의 실제 파일 일치, observation schema 확인 표시
 - 비상정지, 정지 방식, joint/workspace 한계, 완료 feedback, handoff 안전 검증 표시
 
 검증기는 JSON 기록의 형식과 필수 표시를 검사합니다. 장치에 실제 연결하거나 pose 측정, 모델 입출력, 안전 동작을 실험하는 기능은 아닙니다. `verified` 표시와 근거를 채우는 책임은 실제 측정·시험을 수행한 사용자에게 있습니다.
@@ -202,4 +258,4 @@ Kociemba 논리 면은 `U, R, F, D, L, B`로 식별합니다. calibration은 각
 - 실패 뒤에는 operator 확인, 큐브 pose 재측정, 필요 시 새 `scan_id`로 재인식·재풀이를 거친 다음 별도 실행 목표를 받아야 합니다. 기존 action을 자동 재시도하거나 중단 지점부터 이어서 실행하지 않습니다.
 - 비상정지 수단과 접근 위치, 토크·속도 제한, 작업 공간과 사람 접근 제한, 수동 회수 절차가 확인되지 않으면 실제 모터 구동을 시작하지 않습니다.
 
-위 계약을 실제 값으로 채우기 위한 자료는 카메라/pose provider의 선택, 양 손과 손목의 실물 조립 frame·motor ID·통신값, 정책별 실기 observation/action 보정, 하드웨어 정지 방식입니다. 설정 파일과 형식 검증기는 준비됐지만 실제 calibration 기록, sensor freshness 검사, pose 기반 목표 변환, driver 및 adapter 완료 판정은 아직 구현되지 않았습니다.
+위 계약을 실제 값으로 채우기 위한 자료는 카메라/pose provider의 선택, 양 손과 손목의 실물 조립 frame·motor ID·통신값, 정책별 실기 observation/action 보정, 하드웨어 정지 방식입니다. shadow input의 freshness·frame·배열 형식 검사는 구현했지만 실제 calibration 기록, upstream pose/joint publisher, pose 기반 목표 변환, motor driver 및 adapter 완료 판정은 아직 없습니다.

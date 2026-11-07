@@ -2,9 +2,12 @@
 
 import rclpy
 import re
+from pathlib import Path
+from ament_index_python.packages import get_package_share_directory
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
 from system_interfaces.action import ExecuteHandPrimitive
+from leap_hand_control.policy_adapter import LeapPolicyAdapter
 
 
 class LeapHandPrimitiveServer(Node):
@@ -12,6 +15,23 @@ class LeapHandPrimitiveServer(Node):
 
     def __init__(self):
         super().__init__('leap_hand_primitive_server')
+        default_policy = (
+            Path(get_package_share_directory('leap_hand_control'))
+            / 'models' / 'policy_np.npz')
+        self.declare_parameter('policy_path', str(default_policy))
+        policy_path = self.get_parameter('policy_path').value.strip()
+        self._policy_adapter = None
+        self._policy_error = '정책 파일 경로가 설정되지 않았습니다.'
+        if policy_path:
+            try:
+                self._policy_adapter = LeapPolicyAdapter(policy_path)
+                self._policy_error = ''
+                self.get_logger().info(
+                    'LEAP 정책 파일 형식과 108→16 추론기를 준비했습니다. '
+                    '관측·pose 입력과 하드웨어 출력은 연결되지 않았습니다.')
+            except (RuntimeError, ValueError) as exc:
+                self._policy_error = str(exc)
+                self.get_logger().warning(f'LEAP 정책 어댑터를 사용할 수 없습니다: {exc}')
         self._server = ActionServer(
             self,
             ExecuteHandPrimitive,
@@ -66,9 +86,15 @@ class LeapHandPrimitiveServer(Node):
 
         if not goal.dry_run:
             result.success = False
-            result.error_code = 'HARDWARE_NOT_CONFIGURED'
-            result.error_message = (
-                'LEAP Hand 정책과 XC330 구동부를 연결하지 않았습니다.')
+            if self._policy_adapter is None:
+                result.error_code = 'POLICY_NOT_CONFIGURED'
+                result.error_message = (
+                    'LEAP 정책 어댑터를 준비하지 못했습니다: ' + self._policy_error)
+            else:
+                result.error_code = 'POSE_SOURCE_UNAVAILABLE'
+                result.error_message = (
+                    '정책 추론기는 준비됐지만 108차원 관측을 구성할 큐브 pose와 '
+                    '16개 관절 상태 입력이 연결되지 않았습니다. 모터 명령은 비활성화되어 있습니다.')
             feedback.state = feedback.STATE_FAILED
             feedback.message = result.error_message
             goal_handle.publish_feedback(feedback)

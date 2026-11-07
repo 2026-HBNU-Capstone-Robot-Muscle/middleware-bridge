@@ -10,6 +10,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/models', ['models/policy_np.npz']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -25,6 +26,7 @@ setup(
     entry_points={
         'console_scripts': [
             'leap_hand_primitive_server = leap_hand_control.primitive_server:main',
+            'leap_policy_shadow = leap_hand_control.policy_shadow_node:main',
         ],
     },
 )
