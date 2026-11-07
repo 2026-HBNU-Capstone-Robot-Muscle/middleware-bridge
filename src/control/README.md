@@ -15,6 +15,8 @@
 | `/custom_hand/execute_primitive` | `system_interfaces/action/ExecuteHandPrimitive` | 상단 Custom Hand의 파지·레이어 회전·해제 primitive 요청을 받습니다. |
 | `/leap_hand/policy_input` → `/leap_hand/policy_action` | `LeapPolicyInput` → `HandPolicyAction` | LEAP 센서 입력을 조립해 108→16 shadow 추론을 수행합니다. |
 | `/custom_hand/policy_input` → `/custom_hand/policy_action` | `CustomPolicyInput` → `HandPolicyAction` | 보정된 Custom 상태에서 8→4 shadow 추론을 수행합니다. |
+| `/cube/policy_goal` | `system_interfaces/msg/CubePolicyGoal` | 보정된 face-to-frame 변환기가 현재 move의 목표 quaternion을 제공합니다. |
+| `/cube/pose`, `/leap_hand/palm_pose`, `/leap_hand/joint_states`, `/leap_hand/commanded_joint_states`, `/custom_hand/policy_joint_states` | 각각 `PoseStamped` 또는 `JointState` | 외부 pose·driver 입력입니다. `system_bringup/policy_input_bridge`가 workflow 상태와 최신 입력을 정책 입력으로 묶습니다. |
 
 `ExecuteHandPrimitive` 목표에는 `scan_id`, `execution_id`, 이동·단계 인덱스, 원래의 `cube_move`, 논리 좌표계의 `target_face`, `clockwise_quarter_turns`, `primitive_id`, `dry_run`이 포함됩니다. 회전 방향은 `target_face` 바깥에서 면을 바라볼 때 시계 방향을 양수로 표현합니다. 회전 primitive의 값은 `1`, `-1`, `2`이며 그 외 primitive는 `0`입니다.
 
@@ -66,7 +68,7 @@ primitive 서버 로그에 `LEAP 정책 파일 형식과 108→16 추론기를 �
 | `/custom_hand/policy_input` | `system_interfaces/msg/CustomPolicyInput` | Custom 정책 좌표계의 손가락 4개 위치와 속도를 전달합니다. 순서는 `right, front, left, back`입니다. |
 | `/custom_hand/policy_action` | `system_interfaces/msg/HandPolicyAction` | 손가락 순서의 정규화 출력 4개입니다. 손가락 위치 변환이나 손목 Feetech 제어를 수행하지 않습니다. |
 
-LEAP 입력의 `cube_pose`, `palm_pose`와 `leap_joint_state` timestamp는 모두 유효하고 최근 값이어야 합니다. 입력 생산자는 구성요소 측정값을 같은 샘플로 동기화해야 합니다. 두 pose의 `header.frame_id`는 설정한 `world_frame`과 같아야 하며 pose 위치 단위는 m, quaternion 순서는 ROS 표준 x,y,z,w입니다. `joint_state.name`은 참조 배포 코드의 16개 이름을 포함해야 하고 위치는 rad 단위입니다. `commanded_joint_positions`는 같은 순서의 직전 명령각(rad)이며 `goal_orientation`은 목표 cube quaternion입니다. 입력 조립기는 참조 순서로 관절을 재배열하고 108차원 관측의 이력을 구성합니다. source deployment의 150 ms freshness 기준을 적용합니다. 목표 quaternion과 Kociemba 면 문자의 대응은 아직 보정·연결되지 않았으므로 이 입력의 생산자가 검증된 변환을 제공해야 합니다.
+LEAP 입력의 `cube_pose`, `palm_pose`와 `leap_joint_state` timestamp는 모두 유효하고 최근 값이어야 합니다. 입력 생산자는 구성요소 측정값을 같은 샘플로 동기화해야 합니다. 두 pose의 `header.frame_id`는 설정한 `world_frame`과 같아야 하며 pose 위치 단위는 m, quaternion 순서는 ROS 표준 x,y,z,w입니다. `joint_state.name`은 참조 배포 코드의 16개 이름을 포함해야 하고 위치는 rad 단위입니다. `commanded_joint_positions`는 같은 순서의 직전 명령각(rad)이며 `goal_orientation`은 목표 cube quaternion입니다. 입력 조립기는 참조 순서로 관절을 재배열하고 108차원 관측의 이력을 구성합니다. 입력 bridge는 기본 100 ms freshness를 적용하고, 원본 LEAP runner의 pose 기준은 150 ms입니다. 목표 quaternion과 Kociemba 면 문자의 대응은 아직 보정·연결되지 않았으므로 이 입력의 생산자가 검증된 변환을 제공해야 합니다.
 
 108개 값의 순서는 관절각 16, 관절오차 이력 48, 손바닥-큐브 위치오차 이력 9, cube 자세오차 이력 18, 직전 행동 16, 자세오차 scalar 1입니다. 이력은 최근 샘플부터 저장합니다.
 
@@ -74,13 +76,62 @@ LEAP 입력의 `cube_pose`, `palm_pose`와 `leap_joint_state` timestamp는 모�
 ros2 interface show system_interfaces/msg/LeapPolicyInput
 ros2 interface show system_interfaces/msg/CustomPolicyInput
 ros2 interface show system_interfaces/msg/HandPolicyAction
+ros2 interface show system_interfaces/msg/CubePolicyGoal
 ros2 run leap_hand_control leap_policy_shadow --ros-args -p world_frame:=YOUR_MEASURED_FRAME
 ros2 run custom_hand_control custom_hand_policy_shadow
 ```
 
-`YOUR_MEASURED_FRAME`은 카메라/로봇 보정으로 실제 확인한 공통 프레임 이름으로 바꿉니다. 현재 middleware에는 `/cube/pose`, palm pose 또는 LEAP `/joint_states` publisher와 정책 입력 aggregator가 없습니다. 따라서 위 subscriber는 데이터 계약을 받도록 구현된 상태이고, 위 계약으로 동기화된 `LeapPolicyInput`과 보정된 `CustomPolicyInput`을 발행하는 실제 sensor/driver publisher를 추가해야 정책 출력이 나옵니다. Custom 입력의 8개 값은 참고 `core.observation`의 motor-tick 보정 이후 값이어야 합니다. 그 mapping 미검증 상태에서는 임의로 변환하지 않습니다.
+`YOUR_MEASURED_FRAME`은 카메라/로봇 보정으로 실제 확인한 공통 프레임 이름으로 바꿉니다. `system_bringup/policy_input_bridge`는 외부 source topics를 구독합니다. LEAP 실행 단계의 `CubeExecutionStatus`와 scan/execution ID, `CubePolicyGoal`, pose frame, 각 입력 timestamp를 확인한 다음 `/leap_hand/policy_input`을 발행합니다. Custom 실행 단계에서는 상태와 ID, 보정된 `/custom_hand/policy_joint_states`를 묶어 `/custom_hand/policy_input`을 발행합니다. `leap_source_joint_names`, `leap_command_joint_names`, `custom_source_joint_names` 매개변수의 순서는 실제 source name을 정책 관절·손가락 순서에 대응하도록 지정해야 합니다.
+
+현재 middleware에는 실측 `/cube/pose`, palm pose, LEAP joint/command state, Custom policy-coordinate state 또는 `CubePolicyGoal` publisher가 없습니다. YOLO의 2D OBB를 3D pose로 바꾸는 변환도 구현하지 않았습니다. Dynamixel joint feedback은 보정된 관절각과 link geometry가 있을 때 손가락/손의 순기구학에 쓸 수 있지만, 그 값만으로 큐브의 절대 위치·자세를 정하지는 못합니다. 큐브 pose를 joint feedback에서 추정하려면 손·큐브 기준 frame, 접촉/파지 관계, slip 판정과 object-to-hand calibration이 추가로 검증돼야 합니다. 따라서 실제 정책 입력을 내기 위해서는 보정된 pose provider, 손바닥 pose와 motor-state publisher, 목표면 quaternion 변환기가 필요합니다. Custom 입력은 motor tick이 아니라 참고 `core.observation`의 calibration 이후 policy position·velocity 좌표여야 합니다. 미검증 mapping으로 값을 임의 변환하지 않습니다.
 
 Custom 모델은 Stable-Baselines3 PPO actor의 8→64→64→4 구조를 CPU에서 weights-only로 읽습니다. 기본 Tanh 은닉층과 action-space `[-1,1]` clipping을 적용합니다. 정책 후보 파일은 middleware 내부에 복사했지만 참조 설정의 hash와 일치하지 않으므로, 이 shadow 추론 결과는 선택 checkpoint를 확정하거나 실기 동작을 입증하지 않습니다. 네 hand policy 출력 토픽 모두 실제 모터 구동과 분리되어 있습니다.
+
+## 빠른 Shadow 경로 확인
+
+카메라와 모터 없이 bridge와 양쪽 정책 추론 경로를 확인할 수 있습니다. 아래 합성 publisher는 프로젝트 입력 토픽에 데이터를 발행하므로 실제 카메라·하드웨어 driver·`cube_sequence_executor`와 동시에 실행하지 않습니다.
+
+```powershell
+cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+pixi run build-windows
+```
+
+PowerShell 창 네 개를 열고, 각 창에서 프로젝트 환경과 overlay를 불러옵니다.
+
+```powershell
+cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+pixi shell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+. .\.colcon-win\install\local_setup.ps1
+```
+
+각 창에서 하나씩 실행합니다.
+
+1. 입력 bridge
+
+   ```powershell
+   ros2 run system_bringup policy_input_bridge --ros-args -p world_frame:=policy_demo_world
+   ```
+
+2. LEAP shadow 추론
+
+   ```powershell
+   ros2 run leap_hand_control leap_policy_shadow --ros-args -p world_frame:=policy_demo_world
+   ```
+
+3. Custom shadow 추론
+
+   ```powershell
+   ros2 run custom_hand_control custom_hand_policy_shadow
+   ```
+
+4. 합성 입력 publisher
+
+   ```powershell
+   ros2 run system_bringup policy_input_demo_publisher --ros-args -p world_frame:=policy_demo_world
+   ```
+
+4번 창에 `leap_hand: shadow_only=True, elements=16`과 `custom_hand: shadow_only=True, elements=4`가 출력되면 양쪽 정책 출력이 발행된 것입니다. 출력 숫자는 모터로 전달되지 않습니다. 토픽을 직접 확인하려면 별도 창에서 `ros2 topic echo /leap_hand/policy_input`, `ros2 topic echo /leap_hand/policy_action`, `ros2 topic echo /custom_hand/policy_action`을 실행합니다. 합성 publisher는 `Ctrl+C`로 종료합니다.
 
 빌드 중 `system_interfaces`에서 CMake deprecation 및 policy 경고가 출력될 수 있습니다. 이는 경고이며 빌드가 `Finished`로 끝나면 그 경고만으로 패키지 실패를 의미하지 않습니다. 빌드 결과의 `Summary`에서 실패 패키지가 없는지도 확인합니다.
 

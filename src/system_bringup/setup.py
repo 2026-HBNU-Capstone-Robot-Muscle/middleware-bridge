@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'policy_input_bridge = system_bringup.policy_input_bridge:main',
+            'policy_input_demo_publisher = system_bringup.policy_input_demo_publisher:main',
         ],
     },
 )

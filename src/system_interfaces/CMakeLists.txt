@@ -24,6 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/LeapPolicyInput.msg"
   "msg/CustomPolicyInput.msg"
   "msg/HandPolicyAction.msg"
+  "msg/CubePolicyGoal.msg"
   "srv/SolveCube.srv"
   DEPENDENCIES action_msgs geometry_msgs sensor_msgs std_msgs
 )
