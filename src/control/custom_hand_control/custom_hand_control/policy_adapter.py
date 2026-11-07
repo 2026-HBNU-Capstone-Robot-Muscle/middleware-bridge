@@ -1,5 +1,7 @@
 """Hardware-free inference for the Custom Hand Stable-Baselines3 policy."""
 
+import base64
+import binascii
 import hashlib
 import io
 import json
@@ -54,8 +56,13 @@ class CustomPolicyAdapter:
         if metadata.get('policy_kwargs') not in ({}, None):
             raise ValueError('Custom policy uses unsupported non-default policy_kwargs.')
         policy_class = metadata.get('policy_class', {})
+        try:
+            serialized_class = base64.b64decode(
+                policy_class.get(':serialized:', ''), validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise ValueError('Custom policy class metadata is malformed.') from exc
         if (policy_class.get('__module__') != 'stable_baselines3.common.policies'
-                or 'ActorCriticPolicy' not in policy_class.get('__doc__', '')):
+                or b'ActorCriticPolicy' not in serialized_class):
             raise ValueError('Custom policy archive is not an ActorCriticPolicy model.')
 
         self._weights = {}

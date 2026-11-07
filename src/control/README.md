@@ -81,7 +81,7 @@ ros2 run leap_hand_control leap_policy_shadow --ros-args -p world_frame:=YOUR_ME
 ros2 run custom_hand_control custom_hand_policy_shadow
 ```
 
-`YOUR_MEASURED_FRAME`은 카메라/로봇 보정으로 실제 확인한 공통 프레임 이름으로 바꿉니다. `system_bringup/policy_input_bridge`는 외부 source topics를 구독합니다. LEAP 실행 단계의 `CubeExecutionStatus`와 scan/execution ID, `CubePolicyGoal`, pose frame, 각 입력 timestamp를 확인한 다음 `/leap_hand/policy_input`을 발행합니다. Custom 실행 단계에서는 상태와 ID, 보정된 `/custom_hand/policy_joint_states`를 묶어 `/custom_hand/policy_input`을 발행합니다. `leap_source_joint_names`, `leap_command_joint_names`, `custom_source_joint_names` 매개변수의 순서는 실제 source name을 정책 관절·손가락 순서에 대응하도록 지정해야 합니다.
+`YOUR_MEASURED_FRAME`은 카메라/로봇 보정으로 실제 확인한 공통 프레임 이름으로 바꿉니다. `system_bringup/policy_input_bridge`는 외부 source topics를 구독합니다. LEAP 실행 단계의 `CubeExecutionStatus`와 scan/execution ID, `CubePolicyGoal`, pose frame, 각 센서 timestamp를 확인한 다음 `/leap_hand/policy_input`을 발행합니다. 실행 상태와 목표 quaternion은 해당 primitive 동안 유지되는 문맥값으로 다룹니다. 새 pose·joint 샘플 묶음마다 한 번만 발행하고, 정책 입력 구독 큐는 최신 샘플 하나만 보관합니다. Custom 실행 단계에서도 상태와 ID가 유지되는 동안 새 `/custom_hand/policy_joint_states` 샘플당 한 번만 `/custom_hand/policy_input`을 발행합니다. `leap_source_joint_names`, `leap_command_joint_names`, `custom_source_joint_names` 매개변수의 순서는 실제 source name을 정책 관절·손가락 순서에 대응하도록 지정해야 합니다.
 
 현재 middleware에는 실측 `/cube/pose`, palm pose, LEAP joint/command state, Custom policy-coordinate state 또는 `CubePolicyGoal` publisher가 없습니다. YOLO의 2D OBB를 3D pose로 바꾸는 변환도 구현하지 않았습니다. Dynamixel joint feedback은 보정된 관절각과 link geometry가 있을 때 손가락/손의 순기구학에 쓸 수 있지만, 그 값만으로 큐브의 절대 위치·자세를 정하지는 못합니다. 큐브 pose를 joint feedback에서 추정하려면 손·큐브 기준 frame, 접촉/파지 관계, slip 판정과 object-to-hand calibration이 추가로 검증돼야 합니다. 따라서 실제 정책 입력을 내기 위해서는 보정된 pose provider, 손바닥 pose와 motor-state publisher, 목표면 quaternion 변환기가 필요합니다. Custom 입력은 motor tick이 아니라 참고 `core.observation`의 calibration 이후 policy position·velocity 좌표여야 합니다. 미검증 mapping으로 값을 임의 변환하지 않습니다.
 
@@ -131,7 +131,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
    ros2 run system_bringup policy_input_demo_publisher --ros-args -p world_frame:=policy_demo_world
    ```
 
-4번 창에 `leap_hand: shadow_only=True, elements=16`과 `custom_hand: shadow_only=True, elements=4`가 출력되면 양쪽 정책 출력이 발행된 것입니다. 출력 숫자는 모터로 전달되지 않습니다. 토픽을 직접 확인하려면 별도 창에서 `ros2 topic echo /leap_hand/policy_input`, `ros2 topic echo /leap_hand/policy_action`, `ros2 topic echo /custom_hand/policy_action`을 실행합니다. 합성 publisher는 `Ctrl+C`로 종료합니다.
+4번 창에 `leap_hand: shadow_only=True, elements=16`과 `custom_hand: shadow_only=True, elements=4`가 출력되면 양쪽 정책 출력이 발행된 것입니다. 출력 숫자는 모터로 전달되지 않습니다. 입력 속도와 중복 발행 여부는 별도 창에서 `ros2 topic hz /leap_hand/policy_input` 및 `ros2 topic hz /custom_hand/policy_input`으로 확인할 수 있습니다. 데모는 각 입력을 약 20 Hz로 발행합니다. 토픽 내용은 `ros2 topic echo /leap_hand/policy_action`, `ros2 topic echo /custom_hand/policy_action`으로 확인합니다. 합성 publisher는 `Ctrl+C`로 종료합니다.
 
 빌드 중 `system_interfaces`에서 CMake deprecation 및 policy 경고가 출력될 수 있습니다. 이는 경고이며 빌드가 `Finished`로 끝나면 그 경고만으로 패키지 실패를 의미하지 않습니다. 빌드 결과의 `Summary`에서 실패 패키지가 없는지도 확인합니다.
 

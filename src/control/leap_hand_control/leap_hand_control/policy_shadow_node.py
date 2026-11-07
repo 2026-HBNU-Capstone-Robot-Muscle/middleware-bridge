@@ -6,6 +6,7 @@ import numpy as np
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
+from rclpy.qos import QoSProfile
 from system_interfaces.msg import HandPolicyAction, LeapPolicyInput
 
 from leap_hand_control.observation_builder import (
@@ -56,9 +57,10 @@ class LeapPolicyShadowNode(Node):
         self._builder = LeapObservationBuilder()
         self._last_identity = None
         self._input_subscription = self.create_subscription(
-            LeapPolicyInput, '/leap_hand/policy_input', self._on_input, 10)
+            LeapPolicyInput, '/leap_hand/policy_input', self._on_input,
+            QoSProfile(depth=1))
         self._action_publisher = self.create_publisher(
-            HandPolicyAction, '/leap_hand/policy_action', 10)
+            HandPolicyAction, '/leap_hand/policy_action', QoSProfile(depth=1))
         self.get_logger().info(
             'Shadow inference ready: /leap_hand/policy_input → '
             '/leap_hand/policy_action; motor output is not connected.')

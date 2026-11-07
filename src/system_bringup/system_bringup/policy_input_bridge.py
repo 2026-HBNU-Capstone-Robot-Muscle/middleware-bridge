@@ -6,7 +6,7 @@ import numpy as np
 import rclpy
 from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, qos_profile_sensor_data
 from sensor_msgs.msg import JointState
 from system_interfaces.msg import (
     CubeExecutionStatus,
@@ -92,11 +92,15 @@ class PolicyInputBridge(Node):
         self._custom_joints = None
         self._status = None
         self._last_warning = ''
+        self._last_leap_context = None
+        self._last_leap_sample_stamps = None
+        self._last_custom_context = None
+        self._last_custom_sample_stamp = None
 
         self._leap_publisher = self.create_publisher(
-            LeapPolicyInput, '/leap_hand/policy_input', 10)
+            LeapPolicyInput, '/leap_hand/policy_input', QoSProfile(depth=1))
         self._custom_publisher = self.create_publisher(
-            CustomPolicyInput, '/custom_hand/policy_input', 10)
+            CustomPolicyInput, '/custom_hand/policy_input', QoSProfile(depth=1))
         self._subscriptions = [
             self.create_subscription(
                 PoseStamped,
@@ -166,16 +170,16 @@ class PolicyInputBridge(Node):
                 self._warn_once(f'Custom policy input withheld: {exc}')
 
     def _publish_leap(self, status, now_ns, now_msg):
-        self._fresh(status, 'execution status', now_ns)
         if not self._world_frame:
             raise ValueError('world_frame must be configured from measured calibration.')
         for message, label in (
                 (self._cube_pose, 'cube pose'),
                 (self._palm_pose, 'palm pose'),
                 (self._leap_joints, 'LEAP joint state'),
-                (self._leap_command, 'LEAP commanded state'),
-                (self._goal, 'calibrated cube goal')):
+                (self._leap_command, 'LEAP commanded state')):
             self._fresh(message, label, now_ns)
+        if self._goal is None or _stamp_ns(self._goal.header.stamp) <= 0:
+            raise ValueError('calibrated cube goal has not arrived or has no timestamp.')
 
         for pose, label in ((self._cube_pose, 'cube pose'),
                             (self._palm_pose, 'palm pose'),
@@ -187,6 +191,25 @@ class PolicyInputBridge(Node):
                 or self._goal.execution_id != status.execution_id
                 or self._goal.target_face != expected_face):
             raise ValueError('cube goal does not match the active scan, execution, and face.')
+
+        context = (
+            status.scan_id, status.execution_id, status.move_index,
+            status.step_index, status.current_move, status.hand_id,
+            status.primitive_id)
+        if context != self._last_leap_context:
+            self._last_leap_context = context
+            self._last_leap_sample_stamps = None
+        sample_stamps = tuple(_stamp_ns(message.header.stamp) for message in (
+            self._cube_pose, self._palm_pose, self._leap_joints,
+            self._leap_command))
+        previous_stamps = self._last_leap_sample_stamps
+        if previous_stamps is not None:
+            if any(current < previous for current, previous
+                   in zip(sample_stamps, previous_stamps)):
+                self._last_leap_sample_stamps = None
+            elif any(current == previous for current, previous
+                     in zip(sample_stamps, previous_stamps)):
+                return
 
         joint_positions = _ordered_joint_values(
             self._leap_joints, self._leap_source_names, 'position', 16)
@@ -207,11 +230,24 @@ class PolicyInputBridge(Node):
         output.leap_joint_state.position = [float(v) for v in joint_positions]
         output.commanded_joint_positions = [float(v) for v in command_positions]
         self._leap_publisher.publish(output)
+        self._last_leap_sample_stamps = sample_stamps
         self._last_warning = ''
 
     def _publish_custom(self, status, now_ns, now_msg):
-        self._fresh(status, 'execution status', now_ns)
         self._fresh(self._custom_joints, 'Custom policy joint state', now_ns)
+        context = (
+            status.scan_id, status.execution_id, status.move_index,
+            status.step_index, status.current_move, status.hand_id,
+            status.primitive_id)
+        sample_stamp = _stamp_ns(self._custom_joints.header.stamp)
+        if context != self._last_custom_context:
+            self._last_custom_context = context
+            self._last_custom_sample_stamp = None
+        if self._last_custom_sample_stamp is not None:
+            if sample_stamp < self._last_custom_sample_stamp:
+                self._last_custom_sample_stamp = None
+            elif sample_stamp == self._last_custom_sample_stamp:
+                return
         positions = _ordered_joint_values(
             self._custom_joints, self._custom_source_names, 'position', 4)
         velocities = _ordered_joint_values(
@@ -225,6 +261,7 @@ class PolicyInputBridge(Node):
         output.policy_positions = [float(v) for v in positions]
         output.policy_velocities = [float(v) for v in velocities]
         self._custom_publisher.publish(output)
+        self._last_custom_sample_stamp = sample_stamp
         self._last_warning = ''
 
     def _on_cube_pose(self, message):

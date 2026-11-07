@@ -6,6 +6,7 @@ import numpy as np
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
+from rclpy.qos import QoSProfile
 from system_interfaces.msg import CustomPolicyInput, HandPolicyAction
 
 from custom_hand_control.policy_adapter import CustomPolicyAdapter
@@ -31,9 +32,10 @@ class CustomPolicyShadowNode(Node):
         self._policy = CustomPolicyAdapter(
             self.get_parameter('policy_path').value)
         self._subscription = self.create_subscription(
-            CustomPolicyInput, '/custom_hand/policy_input', self._on_input, 10)
+            CustomPolicyInput, '/custom_hand/policy_input', self._on_input,
+            QoSProfile(depth=1))
         self._publisher = self.create_publisher(
-            HandPolicyAction, '/custom_hand/policy_action', 10)
+            HandPolicyAction, '/custom_hand/policy_action', QoSProfile(depth=1))
         self.get_logger().info(
             'Shadow inference ready: /custom_hand/policy_input → '
             '/custom_hand/policy_action; four finger outputs only, motor output disabled.')
