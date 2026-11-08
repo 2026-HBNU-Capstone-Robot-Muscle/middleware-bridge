@@ -157,14 +157,14 @@ ros2 action send_goal /policy/infer system_interfaces/action/InferHandPolicy $go
 카메라와 모터 없이 bridge와 양쪽 정책 추론 경로를 확인할 수 있습니다. 아래 합성 publisher는 프로젝트 입력 토픽에 데이터를 발행하므로 실제 카메라·하드웨어 driver·`cube_sequence_executor`와 동시에 실행하지 않습니다.
 
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+cd \middleware-bridge
 pixi run build-windows
 ```
 
 PowerShell 창 네 개를 열고, 각 창에서 프로젝트 환경과 overlay를 불러옵니다.
 
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+cd \middleware-bridge
 pixi shell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 . .\.colcon-win\install\local_setup.ps1
@@ -205,14 +205,14 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 프로젝트 루트에서 전체 워크스페이스를 빌드합니다.
 
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+cd \middleware-bridge
 pixi run build-windows
 ```
 
 빌드가 끝난 뒤 각 PowerShell 창에서 ROS overlay를 불러옵니다.
 
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+cd \middleware-bridge
 pixi shell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 . .\.colcon-win\install\local_setup.ps1
@@ -435,3 +435,39 @@ Kociemba 논리 면은 `U, R, F, D, L, B`로 식별합니다. calibration은 각
 - 비상정지 수단과 접근 위치, 토크·속도 제한, 작업 공간과 사람 접근 제한, 수동 회수 절차가 확인되지 않으면 실제 모터 구동을 시작하지 않습니다.
 
 위 계약을 실제 값으로 채우기 위한 자료는 카메라/pose provider의 선택, 양 손과 손목의 실물 조립 frame·motor ID·통신값, 정책별 실기 observation/action 보정, 하드웨어 정지 방식입니다. shadow input의 freshness·frame·배열 형식 검사는 구현했지만 실제 calibration 기록, upstream pose/joint publisher, pose 기반 목표 변환, motor driver 및 adapter 완료 판정은 아직 없습니다.
+
+## 카메라에서 얻은 풀이로 방향 순열 trace 확인
+
+이전 카메라 실험에서 발행된 facelet과 Kociemba 풀이를 재사용해 20개 이동 전체를 정책 포함 dry-run으로 실행했습니다. 새로 카메라를 촬영한 시험은 아닙니다. 검증한 입력은 다음과 같습니다.
+
+- `facelets`: `BFLDUBFFUFLDFRRLBRRULUFRULBLUDDDRBBURBDLLRRFBFLUDBDFUD`
+- `moves`: `D2 L' F' D' L B2 D' R F2 B2 D R B2 L2 U L2 U B2 U2 L2`
+- 실행 결과: `success: true`, `completed_moves: 20`, `completed_steps: 80`
+- 정책 추론·방향 trace: 각 primitive 80개 항목. LEAP가 정렬한 뒤 각 이동의 대상 면 방향 슬롯은 0이었고, 이어지는 Custom 파지·회전·해제 단계에서는 전체 큐브 방향 순열이 유지됐습니다.
+
+각 이동 직전 순열에서 이동 대상 면이 있던 슬롯과 LEAP 정렬 뒤의 순열은 다음과 같습니다. 순열 문자열은 현재 URFDLB 방향 슬롯에 놓인 초기 면 라벨 순서입니다.
+
+| 이동 | 이동 전 순열 | 대상 슬롯 | LEAP 정렬 뒤 순열 |
+|---|---|---:|---|
+| `D2` | `URFDLB` | 3 | `DLFURB` |
+| `L'` | `DLFURB` | 1 | `LUFRDB` |
+| `F'` | `LUFRDB` | 2 | `FURBDL` |
+| `D'` | `FURBDL` | 4 | `DFRUBL` |
+| `L` | `DFRUBL` | 5 | `LFDRBU` |
+| `B2` | `LFDRBU` | 4 | `BLDFRU` |
+| `D'` | `BLDFRU` | 2 | `DLFURB` |
+| `R` | `DLFURB` | 4 | `RDFLUB` |
+| `F2` | `RDFLUB` | 2 | `FDLBUR` |
+| `B2` | `FDLBUR` | 3 | `BULFDR` |
+| `D` | `BULFDR` | 4 | `DBLUFR` |
+| `R` | `DBLUFR` | 5 | `RBDLFU` |
+| `B2` | `RBDLFU` | 1 | `BLDFRU` |
+| `L2` | `BLDFRU` | 1 | `LFDRBU` |
+| `U` | `LFDRBU` | 5 | `UFLDBR` |
+| `L2` | `UFLDBR` | 2 | `LFDRBU` |
+| `U` | `LFDRBU` | 5 | `UFLDBR` |
+| `B2` | `UFLDBR` | 4 | `BULFDR` |
+| `U2` | `BULFDR` | 1 | `UFLDBR` |
+| `L2` | `UFLDBR` | 2 | `LFDRBU` |
+
+이 시험의 quaternion은 단위 회전, URFDLB 법선은 축 정렬된 예시값, 관절·위치 계획값은 0으로 넣었습니다. 따라서 결과는 풀이 전체를 action으로 전달하고 정책 추론·계획 갱신·방향 순열 trace가 완주하는지 확인한 것입니다. 카메라 pose와 실제 장착 방향, 물리적 LEAP 회전 또는 Custom 레이어 회전을 검증하지 않았으며 모터 명령은 발행되지 않았습니다. solver facelet 문자열도 실행 중 바뀌지 않습니다.

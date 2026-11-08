@@ -73,7 +73,7 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 - UI의 WebSocket 주소 기본값은 `ws://127.0.0.1:9090`이며, `/chatter` (`std_msgs/msg/String`) 구독·발행과 `/add_two_ints` (`example_interfaces/srv/AddTwoInts`) 호출 기능을 제공합니다.
 - `src-tauri/tauri.conf.json`에는 로컬 rosbridge WebSocket 연결만 허용하는 CSP를 설정했습니다. `scripts/build.ps1`는 별도 Node.js 없이 PowerShell로 Tauri 정적 화면을 `dist/`에 생성합니다.
 - rosbridge WebSocket 연결, talker의 `/chatter` 메시지 수신, 발행 메시지 왕복, `17 + 25 = 42` 서비스 응답을 확인했습니다. 이전에는 Node 기반 스크립트로, 현재는 `scripts/windows/test_rosbridge_ws.ps1`로 같은 검증을 통과했습니다. ROS 예제는 `demo_nodes_py talker`와 `demo_nodes_cpp add_two_ints_server`를 사용했습니다.
-- Windows 개발 도구 확인 결과 Visual Studio 2026 C++ 빌드 구성 요소와 WebView2가 있고, Rust/Cargo 및 Tauri CLI는 `C:\Users\jeonj\.cargo\bin`에 설치되어 있습니다. PowerShell에서 `cargo`가 바로 인식되지 않으면 새 창을 열거나 Cargo 실행 파일의 전체 경로를 사용합니다.
+- Windows 개발 도구 확인 결과 Visual Studio 2026 C++ 빌드 구성 요소와 WebView2가 있고, Rust/Cargo 및 Tauri CLI는 `ROOT\.cargo\bin`에 설치되어 있습니다. PowerShell에서 `cargo`가 바로 인식되지 않으면 새 창을 열거나 Cargo 실행 파일의 전체 경로를 사용합니다.
 - Tauri 빌드가 요구하는 `src-tauri/icons/icon.ico`를 추가했고 `cargo tauri dev` 빌드를 통과했습니다. Tauri WebView에서 한국어 진단 화면이 렌더링되는 것을 확인했습니다. 개발 창은 CLI가 제공하는 로컬 정적 서버를 사용하므로 `target/debug` 실행 파일을 따로 열지 말고 `cargo tauri dev`로 실행해야 합니다.
 - 사용자가 실제 Tauri 창에서 rosbridge 연결, ROS 토픽, 서비스 통신 검증을 완료했습니다. 앞선 PowerShell WebSocket 검사에 더해 WebView 경로도 확인된 상태입니다.
 - `src/system_interfaces`에 `FaceDetection`, `FaceDetectionArray`, `CubeState`, `CubeSolution` 메시지와 `SolveCube` 서비스를 추가했습니다. 좌표는 입력 이미지 픽셀 기준이고, 큐브 facelets는 Kociemba URFDLB 54자 형식을 사용합니다. 손 제어 인터페이스는 실제 드라이버·관절 사양이 정해지지 않아 포함하지 않았습니다.

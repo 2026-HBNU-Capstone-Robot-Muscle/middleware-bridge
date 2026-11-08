@@ -15,7 +15,7 @@ ROS 매개변수로 설정합니다.
 3개 명령을 별도 실행하지 말고, 뒤의 `카메라 검증 절차`에 나온 3개 셸 구성을 따릅니다.
 
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+cd \middleware-bridge
 pixi run build-windows
 pixi shell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -94,7 +94,7 @@ ros2 run cube_detection cube_offline_replay --ros-args `
 먼저 카메라를 연결하고 프로젝트 루트에서 최신 변경을 빌드합니다.
 
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+cd \middleware-bridge
 pixi run build-windows
 ```
 
@@ -102,7 +102,7 @@ PowerShell 창을 세 개 열고 **각 창에서** 프로젝트 루트로 이동
 overlay를 불러옵니다.
 
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+cd \middleware-bridge
 pixi shell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 . .\.colcon-win\install\local_setup.ps1
@@ -138,7 +138,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 최근 풀이 한 건을 받을 수 있도록 publisher가 transient-local QoS를 사용합니다.
 
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
+cd \middleware-bridge
 pixi shell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 . .\.colcon-win\install\local_setup.ps1
