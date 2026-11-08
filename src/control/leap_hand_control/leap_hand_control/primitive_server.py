@@ -76,6 +76,23 @@ class LeapHandPrimitiveServer(Node):
             goal_handle.abort()
             return result
 
+        if (goal.face_direction_order
+                and (len(goal.face_direction_order) != 6
+                     or set(goal.face_direction_order) != set('URFDLB')
+                     or goal.target_face_direction_index >= 6
+                     or goal.face_direction_order[
+                         goal.target_face_direction_index] != goal.target_face)):
+            result.success = False
+            result.error_code = 'INVALID_FACE_DIRECTION_STATE'
+            result.error_message = (
+                'face_direction_order는 URFDLB의 순열이어야 하고 index의 면은 '
+                'target_face와 일치해야 합니다.')
+            feedback.state = feedback.STATE_FAILED
+            feedback.message = result.error_message
+            goal_handle.publish_feedback(feedback)
+            goal_handle.abort()
+            return result
+
         if (goal.policy_id
                 and (goal.policy_id != 'leap_faceup_v1'
                      or len(goal.policy_action_values) != 16

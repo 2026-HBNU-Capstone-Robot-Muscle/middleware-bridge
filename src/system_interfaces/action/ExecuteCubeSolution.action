@@ -17,8 +17,17 @@ string error_code
 string error_message
 # Policy outputs, in primitive order. action_sizes delimits the flattened values.
 string[] policy_ids
+uint32[] policy_step_indices
+uint32[] policy_observation_sizes
+float64[] policy_observations
 uint32[] policy_action_sizes
 float64[] policy_action_values
+# Direction-slot order is URFDLB; each character is the initial face label
+# currently occupying that direction. These trace arrays align with policy_steps.
+string[] face_direction_orders_before
+string[] face_direction_orders_after
+uint32[] target_face_direction_indices_before
+uint32[] target_face_direction_indices_after
 ---
 # Feedback
 system_interfaces/CubeExecutionStatus status

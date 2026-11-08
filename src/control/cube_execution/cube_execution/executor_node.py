@@ -264,10 +264,14 @@ class CubeSequenceExecutor(Node):
                     '/policy/infer action server에 연결할 수 없습니다.',
                     total_moves=len(solution.moves))
             open_state = self._copy_open_loop_state(goal.initial_open_loop_state)
+            initial_cube_quat_wxyz = self._quat_normalize([
+                open_state.cube_orientation.w, open_state.cube_orientation.x,
+                open_state.cube_orientation.y, open_state.cube_orientation.z])
             leap_builder = LeapObservationBuilder()
             previous_goal_face = ''
         else:
             open_state = None
+            initial_cube_quat_wxyz = None
             leap_builder = None
             previous_goal_face = ''
 
@@ -317,6 +321,10 @@ class CubeSequenceExecutor(Node):
             if goal.run_pretrained_policies:
                 policy_id = _POLICY_BY_HAND[step['hand_id']]
                 try:
+                    direction_order_before = self._face_direction_order(
+                        open_state, initial_cube_quat_wxyz)
+                    target_direction_before = direction_order_before.index(
+                        step['target_face'])
                     observation, goal_quat = self._build_open_loop_observation(
                         open_state, leap_builder, step, previous_goal_face)
                 except (ValueError, FloatingPointError) as exc:
@@ -348,10 +356,36 @@ class CubeSequenceExecutor(Node):
                         primitive_id=step['primitive_id'])
                 action_values = list(policy_result.action_values)
                 result.policy_ids.append(policy_id)
+                result.policy_step_indices.append(step_index)
+                result.policy_observation_sizes.append(len(observation))
+                result.policy_observations.extend(
+                    np.asarray(observation, dtype=np.float64).tolist())
                 result.policy_action_sizes.append(len(action_values))
                 result.policy_action_values.extend(action_values)
                 self._advance_open_loop_state(
                     open_state, leap_builder, step, action_values, goal_quat)
+                try:
+                    direction_order_after = self._face_direction_order(
+                        open_state, initial_cube_quat_wxyz)
+                    target_direction_after = direction_order_after.index(
+                        step['target_face'])
+                except (ValueError, FloatingPointError) as exc:
+                    return self._fail(
+                        goal_handle, result, workflow_id,
+                        'FACE_DIRECTION_UPDATE_FAILED', str(exc),
+                        move_index=step['move_index'], total_moves=total_moves,
+                        current_move=step['cube_move'], step_index=step_index,
+                        total_steps=total_steps, hand_id=step['hand_id'],
+                        primitive_id=step['primitive_id'])
+                result.face_direction_orders_before.append(
+                    direction_order_before)
+                result.face_direction_orders_after.append(direction_order_after)
+                result.target_face_direction_indices_before.append(
+                    target_direction_before)
+                result.target_face_direction_indices_after.append(
+                    target_direction_after)
+                step['face_direction_order'] = direction_order_after
+                step['target_face_direction_index'] = target_direction_after
                 previous_goal_face = step['target_face']
                 policy_status = self._publish_status(
                     goal.scan_id, result.execution_id, workflow_id,
@@ -431,6 +465,9 @@ class CubeSequenceExecutor(Node):
         request.step_index = step_index
         request.cube_move = step['cube_move']
         request.target_face = step['target_face']
+        request.face_direction_order = step.get('face_direction_order', '')
+        request.target_face_direction_index = step.get(
+            'target_face_direction_index', 0)
         request.clockwise_quarter_turns = step['clockwise_quarter_turns']
         request.primitive_id = step['primitive_id']
         request.dry_run = True
@@ -573,6 +610,37 @@ class CubeSequenceExecutor(Node):
     def _rotate_vector(q, vector):
         from leap_hand_control.observation_builder import quat_to_mat
         return quat_to_mat(q) @ np.asarray(vector, dtype=np.float64)
+
+    @classmethod
+    def _face_direction_order(cls, state, initial_cube_quat_wxyz):
+        """Return initial face labels occupying initial URFDLB direction slots."""
+        orientation = state.cube_orientation
+        current = cls._quat_normalize([
+            orientation.w, orientation.x, orientation.y, orientation.z])
+        initial_inverse = np.asarray([
+            initial_cube_quat_wxyz[0], -initial_cube_quat_wxyz[1],
+            -initial_cube_quat_wxyz[2], -initial_cube_quat_wxyz[3]])
+        relative = cls._quat_normalize(
+            cls._quat_multiply(initial_inverse, current))
+        normals = np.asarray(
+            state.face_normals_cube_frame_urfdlb,
+            dtype=np.float64).reshape(6, 3)
+        direction_slots = [''] * len(_FACE_ORDER)
+        for face_index, face in enumerate(_FACE_ORDER):
+            current_normal = cls._rotate_vector(relative, normals[face_index])
+            scores = normals @ current_normal
+            slot_index = int(np.argmax(scores))
+            if scores[slot_index] < 0.99:
+                raise ValueError(
+                    '현재 quaternion이 초기 URFDLB 방향 슬롯에 충분히 정렬되지 않아 '
+                    '면 방향 인덱스를 단일 순열로 나타낼 수 없습니다.')
+            if direction_slots[slot_index]:
+                raise ValueError(
+                    '두 큐브 면이 같은 방향 슬롯에 대응되어 면 인덱스가 모호합니다.')
+            direction_slots[slot_index] = face
+        if any(not face for face in direction_slots):
+            raise ValueError('면 방향 인덱스에 빈 슬롯이 남았습니다.')
+        return ''.join(direction_slots)
 
     @classmethod
     def _face_up_goal(cls, cube_quat_xyzw, face_normal_cube):
