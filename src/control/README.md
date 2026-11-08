@@ -20,7 +20,7 @@ LEAP의 108차원 입력은 전달된 planned joint positions, palm-minus-cube �
 
 `run_pretrained_policies=false`이면 기존 dry-run action 검증만 수행합니다. true이면 유한하고 범위 내인 초기 계획 상태와 `/policy/infer` 서버가 필요합니다. 결과의 `policy_ids`, `policy_step_indices`, `policy_observation_sizes`, `policy_observations`, `policy_action_sizes`, `policy_action_values`는 primitive 순서입니다. 관측·action 크기 배열로 각각의 평탄화된 값을 나눠, 이전 action으로 갱신된 상태가 다음 observation에 반영됐는지 확인할 수 있습니다. 실제 입력 토픽이나 모터 제어는 연결되지 않습니다.
 
-같은 모드에서 `face_direction_orders_before/after`는 URFDLB 방향 슬롯에 현재 들어 있는 초기 면 라벨의 순열을 primitive 전·후로 기록합니다. `target_face_direction_indices_before/after`는 논리 `target_face`가 해당 순열의 어느 방향 슬롯에 있는지 0부터 나타냅니다. LEAP가 큐브 자세를 갱신하면 순열도 갱신되고, Custom의 레이어 회전 primitive에서는 큐브 전체 방향이 유지된다는 계획 가정에 따라 순열이 유지됩니다. solver의 원래 `target_face` 라벨과 54자 facelets 자체는 재배열하지 않습니다.
+같은 모드에서 `face_direction_orders_before/after`는 URFDLB 방향 슬롯에 현재 들어 있는 초기 면 라벨의 순열을 primitive 전·후로 기록합니다. `target_face_direction_indices_before/after`는 논리 `target_face`가 해당 순열의 어느 방향 슬롯에 있는지 0부터 나타냅니다. LEAP가 큐브 자세를 갱신하면 순열도 갱신되고, Custom의 레이어 회전 primitive에서는 큐브 전체 방향이 유지된다는 계획 가정에 따라 순열이 유지됩니다. solver의 원래 `target_face` 라벨과 54자 facelets 자체는 재배열하지 않습니다. 실제 조립 좌표계·법선이 검증되지 않았으므로, dry-run 예시의 순열값을 실물 장착 결과로 간주하지 않습니다.
 
 ## ROS 인터페이스
 
@@ -37,7 +37,7 @@ LEAP의 108차원 입력은 전달된 planned joint positions, palm-minus-cube �
 | `/cube/policy_goal` | `system_interfaces/msg/CubePolicyGoal` | 보정된 face-to-frame 변환기가 현재 move의 목표 quaternion을 제공합니다. |
 | `/cube/pose`, `/leap_hand/palm_pose`, `/leap_hand/joint_states`, `/leap_hand/commanded_joint_states`, `/custom_hand/policy_joint_states` | 각각 `PoseStamped` 또는 `JointState` | 외부 pose·driver 입력입니다. `system_bringup/policy_input_bridge`가 workflow 상태와 최신 입력을 정책 입력으로 묶습니다. |
 
-`ExecuteHandPrimitive` 목표에는 `scan_id`, `execution_id`, 이동·단계 인덱스, 원래의 `cube_move`, 논리 좌표계의 `target_face`, 현재 방향 순열 `face_direction_order`, 순열 안에서 해당 면의 슬롯 `target_face_direction_index`, `clockwise_quarter_turns`, `primitive_id`, `dry_run`이 포함됩니다. 회전 방향은 `target_face` 바깥에서 면을 바라볼 때 시계 방향을 양수로 표현합니다. 회전 primitive의 값은 `1`, `-1`, `2`이며 그 외 primitive는 `0`입니다.
+`ExecuteHandPrimitive` 목표에는 `scan_id`, `execution_id`, 이동·단계 인덱스, 원래의 `cube_move`, 논리 좌표계의 `target_face`, 현재 방향 순열 `face_direction_order`, 순열 안에서 해당 면의 슬롯 `target_face_direction_index`, `clockwise_quarter_turns`, `primitive_id`, `dry_run`이 포함됩니다. 방향 순열이 있으면 각 hand 서버는 URFDLB의 유효한 순열인지, 해당 인덱스의 면이 `target_face`와 같은지 확인합니다. 회전 방향은 `target_face` 바깥에서 면을 바라볼 때 시계 방향을 양수로 표현합니다. 회전 primitive의 값은 `1`, `-1`, `2`이며 그 외 primitive는 `0`입니다.
 
 ## 풀이 토큰과 손 primitive 순서
 
