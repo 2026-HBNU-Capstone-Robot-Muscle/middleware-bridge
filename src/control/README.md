@@ -471,3 +471,16 @@ Kociemba 논리 면은 `U, R, F, D, L, B`로 식별합니다. calibration은 각
 | `L2` | `UFLDBR` | 2 | `LFDRBU` |
 
 이 시험의 quaternion은 단위 회전, URFDLB 법선은 축 정렬된 예시값, 관절·위치 계획값은 0으로 넣었습니다. 따라서 결과는 풀이 전체를 action으로 전달하고 정책 추론·계획 갱신·방향 순열 trace가 완주하는지 확인한 것입니다. 카메라 pose와 실제 장착 방향, 물리적 LEAP 회전 또는 Custom 레이어 회전을 검증하지 않았으며 모터 명령은 발행되지 않았습니다. solver facelet 문자열도 실행 중 바뀌지 않습니다.
+
+## 저장된 카메라 풀이 재생 스크립트 입력 검사
+
+`scripts/ros2_dryrun_check.py`는 기본으로 가장 최근 `results/cube_solutions/*.json`을 선택합니다. 실행 전에 JSON object 형식, `format`, 비어 있지 않은 `scan_id`, facelet 54자와 URFDLB 각 9개, Kociemba move 토큰, `move_count`와 실제 `moves` 길이의 일치를 검사합니다. 검증 실패 시 오류를 출력하고 ROS 초기화·발행 전에 종료합니다.
+
+ROS action을 실행하지 않고 파일만 확인하려면 overlay를 불러온 환경에서 실행합니다.
+
+```powershell
+python scripts\ros2_dryrun_check.py --validate-only
+python scripts\ros2_dryrun_check.py --validate-only --solution .\results\cube_solutions\cube_solution_20261103T115403_251838Z_404a3217d7b04219a8dc186fe873bf1b.json
+```
+
+검증은 facelet 문자·개수와 이동 표기 형식을 확인하며, 큐브의 물리적 solvability까지 검증하지는 않습니다. 입력이 유효하면 선택된 파일, 원본 `scan_id`, 이동 수를 출력한 뒤 기존 `success`, `missing`, `cancel` 모드를 실행할 수 있습니다.
