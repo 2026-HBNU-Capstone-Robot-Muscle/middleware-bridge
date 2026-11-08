@@ -92,4 +92,6 @@ python scripts\ros2_dryrun_check.py --mode cancel
 
 **미완료:** 실제 큐브 pose와 좌표계 provider, LEAP·Custom 정책의 실측 입력 연결, 실제 모터 command adapter, 동작 완료 피드백, 안전 정지·복구와 하드웨어 시험. 이 항목들은 측정 pose/프레임, 실제 입력 provider, 장치별 제어 및 안전 검증이 준비돼야 합니다. 현재는 `dry_run=false` 실제 구동을 지원하지 않습니다.
 
+실기 코드에서 찾은 포트·모터·제어 설정은 [하드웨어 설정표](docs/hardware-setting.md)에, 실물 전 남은 입력·보정·안전 항목은 [미완료 목록](docs/incomplete.md)에 기록했습니다.
+
 Tauri 연결 점검 앱은 기본 `ws://127.0.0.1:9090` rosbridge에 연결합니다. Windows rosbridge 실행과 UI 검증 범위는 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.
