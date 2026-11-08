@@ -14,6 +14,7 @@ from rclpy.action import ActionClient
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from system_interfaces.action import ExecuteCubeSolution
 from system_interfaces.msg import CubeExecutionStatus, CubeSolution
+from system_interfaces.srv import SolveCube
 
 MOVE_PATTERN = re.compile(r"^[URFDLB](?:2|')?$")
 FACE_SYMBOLS = set('URFDLB')
@@ -93,15 +94,34 @@ def main():
 
     rclpy.init()
     node = rclpy.create_node('saved_solution_dryrun_check')
-    qos = QoSProfile(
-        depth=10,
-        reliability=ReliabilityPolicy.RELIABLE,
-        durability=DurabilityPolicy.TRANSIENT_LOCAL,
-    )
-    publisher = node.create_publisher(CubeSolution, '/cube/solution', qos)
-    client = ActionClient(
-        node, ExecuteCubeSolution, '/cube/execute_solution')
+    solver_client = node.create_client(SolveCube, '/cube/solve')
+    publisher = None
+    client = None
     try:
+        if not solver_client.wait_for_service(timeout_sec=10.0):
+            raise RuntimeError(
+                '/cube/solve 서비스를 찾을 수 없어 물리 상태 검증을 할 수 없습니다.')
+        request = SolveCube.Request()
+        request.facelets = document['facelets']
+        solve_future = solver_client.call_async(request)
+        rclpy.spin_until_future_complete(node, solve_future, timeout_sec=10.0)
+        if not solve_future.done():
+            raise TimeoutError('/cube/solve 응답 대기 시간이 초과됐습니다.')
+        solve_response = solve_future.result()
+        if solve_response is None or not solve_response.success:
+            reason = (solve_response.error_message if solve_response is not None
+                      else '서비스 응답을 받지 못했습니다.')
+            raise ValueError(f'cube_solver가 facelet 상태를 거부했습니다: {reason}')
+        print('solver_validation: PASS')
+
+        qos = QoSProfile(
+            depth=10,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        publisher = node.create_publisher(CubeSolution, '/cube/solution', qos)
+        client = ActionClient(
+            node, ExecuteCubeSolution, '/cube/execute_solution')
         if not client.wait_for_server(timeout_sec=10.0):
             raise RuntimeError('/cube/execute_solution 서버를 찾을 수 없습니다.')
 
@@ -180,8 +200,13 @@ def main():
                         and result.error_code == 'SOLUTION_NOT_FOUND')
         print(f'check: {"PASS" if expected else "FAIL"}')
         return 0 if expected else 1
+    except (RuntimeError, TimeoutError, ValueError) as exc:
+        print(f'ROS 검증 실패: {exc}')
+        return 2
     finally:
-        client.destroy()
+        if client is not None:
+            client.destroy()
+        solver_client.destroy()
         node.destroy_node()
         rclpy.shutdown()
 

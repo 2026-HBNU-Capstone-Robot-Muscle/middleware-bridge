@@ -483,4 +483,8 @@ python scripts\ros2_dryrun_check.py --validate-only
 python scripts\ros2_dryrun_check.py --validate-only --solution .\results\cube_solutions\cube_solution_20261103T115403_251838Z_404a3217d7b04219a8dc186fe873bf1b.json
 ```
 
-검증은 facelet 문자·개수와 이동 표기 형식을 확인하며, 큐브의 물리적 solvability까지 검증하지는 않습니다. 입력이 유효하면 선택된 파일, 원본 `scan_id`, 이동 수를 출력한 뒤 기존 `success`, `missing`, `cancel` 모드를 실행할 수 있습니다.
+`--validate-only`는 facelet 문자·개수와 move 표기·개수 일치 등 파일 구조만 검사합니다. Action 모드(`success`, `missing`, `cancel`)에서는 구조 검사를 통과한 뒤 `/cube/solve` 서비스로 facelet의 물리적 유효성과 풀이 가능 여부를 확인합니다. solver 응답이 실패하거나 서비스가 준비되지 않으면 `/cube/solution`에 발행하지 않습니다. 유효한 입력은 선택된 파일, 원본 `scan_id`, 이동 수를 먼저 출력합니다. JSON의 `moves`가 해당 facelet을 실제로 푸는지는 아직 대조하지 않습니다.
+
+Action 모드를 쓰려면 `cube_solver`, `cube_sequence_executor`, `leap_hand_primitive_server`, `custom_hand_primitive_server`가 실행 중이어야 합니다. `--validate-only`에는 ROS 노드가 필요하지 않습니다.
+
+solver 연동 뒤 저장 JSON은 `solver_validation: PASS`를 거쳐 20 moves·80 steps까지 완료했습니다. 면별 개수는 각각 9개지만 UF edge 스티커 한 쌍만 뒤집은 임시 상태는 `/cube/solve`가 `Cube state is invalid or unsolvable`로 거부했습니다. action 모드에서는 `/cube/solution` 발행 전 검증에 실패해 종료했습니다. `missing`은 `SOLUTION_NOT_FOUND`, `cancel`은 `CANCELED`/`CANCELLED`로 재확인했습니다. 모든 실행은 dry-run입니다.
