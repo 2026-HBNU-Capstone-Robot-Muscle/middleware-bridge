@@ -15,6 +15,7 @@ find_package(std_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/ExecuteCubeSolution.action"
   "action/ExecuteHandPrimitive.action"
+  "action/InferHandPolicy.action"
   "msg/FaceDetection.msg"
   "msg/FaceDetectionArray.msg"
   "msg/FaceCaptureLabel.msg"
@@ -23,6 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/CubeExecutionStatus.msg"
   "msg/LeapPolicyInput.msg"
   "msg/CustomPolicyInput.msg"
+  "msg/OpenLoopPolicyState.msg"
   "msg/HandPolicyAction.msg"
   "msg/CubePolicyGoal.msg"
   "srv/SolveCube.srv"

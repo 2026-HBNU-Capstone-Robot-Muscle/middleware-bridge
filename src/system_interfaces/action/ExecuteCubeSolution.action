@@ -2,6 +2,9 @@
 string scan_id
 string workflow_id
 bool dry_run
+# Invoke the registered pretrained model once at each primitive stage.
+bool run_pretrained_policies
+system_interfaces/OpenLoopPolicyState initial_open_loop_state
 ---
 # Result
 bool success
@@ -12,6 +15,10 @@ uint32 completed_moves
 uint32 completed_steps
 string error_code
 string error_message
+# Policy outputs, in primitive order. action_sizes delimits the flattened values.
+string[] policy_ids
+uint32[] policy_action_sizes
+float64[] policy_action_values
 ---
 # Feedback
 system_interfaces/CubeExecutionStatus status

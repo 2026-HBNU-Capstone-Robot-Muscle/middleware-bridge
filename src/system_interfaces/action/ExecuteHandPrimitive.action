@@ -9,6 +9,9 @@ string target_face
 int8 clockwise_quarter_turns
 string primitive_id
 bool dry_run
+# Optional deterministic model output passed by the dry-run sequence executor.
+string policy_id
+float64[] policy_action_values
 ---
 # Result
 bool success

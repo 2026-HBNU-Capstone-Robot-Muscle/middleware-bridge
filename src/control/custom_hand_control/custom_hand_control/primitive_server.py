@@ -2,6 +2,7 @@
 
 import rclpy
 import re
+import math
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
 from system_interfaces.action import ExecuteHandPrimitive
@@ -59,6 +60,32 @@ class CustomHandPrimitiveServer(Node):
             goal_handle.abort()
             return result
 
+        if (goal.policy_id
+                and (goal.policy_id != 'custom_finger_ppo_v1'
+                     or len(goal.policy_action_values) != 4
+                     or not all(math.isfinite(value)
+                                for value in goal.policy_action_values)
+                     or any(abs(value) > 1.000001
+                            for value in goal.policy_action_values))):
+            result.success = False
+            result.error_code = 'INVALID_POLICY_OUTPUT'
+            result.error_message = (
+                'Custom primitive에는 custom_finger_ppo_v1의 유한한 action 4개가 필요합니다.')
+            feedback.state = feedback.STATE_FAILED
+            feedback.message = result.error_message
+            goal_handle.publish_feedback(feedback)
+            goal_handle.abort()
+            return result
+        if not goal.policy_id and goal.policy_action_values:
+            result.success = False
+            result.error_code = 'INVALID_POLICY_OUTPUT'
+            result.error_message = 'policy_id 없이 policy_action_values를 받을 수 없습니다.'
+            feedback.state = feedback.STATE_FAILED
+            feedback.message = result.error_message
+            goal_handle.publish_feedback(feedback)
+            goal_handle.abort()
+            return result
+
         if goal_handle.is_cancel_requested:
             result.error_code = 'CANCELLED'
             result.error_message = '요청이 취소되었습니다.'
@@ -81,7 +108,10 @@ class CustomHandPrimitiveServer(Node):
 
         result.success = True
         result.error_code = ''
-        result.error_message = 'dry-run 요청을 검증했습니다. 모터 명령은 보내지 않았습니다.'
+        result.error_message = (
+            'dry-run 요청과 custom_finger_ppo_v1 shadow action을 확인했습니다. '
+            '모터 명령은 보내지 않았습니다.' if goal.policy_id else
+            'dry-run 요청을 검증했습니다. 모터 명령은 보내지 않았습니다.')
         feedback.state = feedback.STATE_COMPLETED
         feedback.message = result.error_message
         goal_handle.publish_feedback(feedback)

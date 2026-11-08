@@ -52,6 +52,17 @@ class LeapObservationBuilder:
         self.cube_ori_err_hist = np.zeros(HISTORY_LEN * 6)
         self.last_act = np.zeros(NQ)
 
+    def fill_orientation_history(self, cube_quat_wxyz, goal_quat_wxyz):
+        """Seed all three orientation-history slots from an explicit plan state."""
+        cube_quat = np.asarray(cube_quat_wxyz, dtype=np.float64)
+        goal_quat = np.asarray(goal_quat_wxyz, dtype=np.float64)
+        if (cube_quat.shape != (4,) or goal_quat.shape != (4,)
+                or not np.all(np.isfinite(cube_quat))
+                or not np.all(np.isfinite(goal_quat))):
+            raise ValueError('Cube and goal orientations must be finite quaternions.')
+        error = self._xmat_diff(cube_quat, goal_quat)
+        self.cube_ori_err_hist = np.tile(error, HISTORY_LEN)
+
     @staticmethod
     def _xmat_diff(cube_quat, goal_quat):
         return quat_to_mat(quat_mul(cube_quat, quat_inv(goal_quat))).ravel()[3:]

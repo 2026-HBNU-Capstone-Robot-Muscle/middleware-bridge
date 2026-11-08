@@ -2,6 +2,7 @@
 
 import rclpy
 import re
+import math
 from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
@@ -75,6 +76,32 @@ class LeapHandPrimitiveServer(Node):
             goal_handle.abort()
             return result
 
+        if (goal.policy_id
+                and (goal.policy_id != 'leap_faceup_v1'
+                     or len(goal.policy_action_values) != 16
+                     or not all(math.isfinite(value)
+                                for value in goal.policy_action_values)
+                     or any(abs(value) > 1.000001
+                            for value in goal.policy_action_values))):
+            result.success = False
+            result.error_code = 'INVALID_POLICY_OUTPUT'
+            result.error_message = (
+                'LEAP primitive에는 leap_faceup_v1의 유한한 action 16개가 필요합니다.')
+            feedback.state = feedback.STATE_FAILED
+            feedback.message = result.error_message
+            goal_handle.publish_feedback(feedback)
+            goal_handle.abort()
+            return result
+        if not goal.policy_id and goal.policy_action_values:
+            result.success = False
+            result.error_code = 'INVALID_POLICY_OUTPUT'
+            result.error_message = 'policy_id 없이 policy_action_values를 받을 수 없습니다.'
+            feedback.state = feedback.STATE_FAILED
+            feedback.message = result.error_message
+            goal_handle.publish_feedback(feedback)
+            goal_handle.abort()
+            return result
+
         if goal_handle.is_cancel_requested:
             result.error_code = 'CANCELLED'
             result.error_message = '요청이 취소되었습니다.'
@@ -103,7 +130,10 @@ class LeapHandPrimitiveServer(Node):
 
         result.success = True
         result.error_code = ''
-        result.error_message = 'dry-run 요청을 검증했습니다. 모터 명령은 보내지 않았습니다.'
+        result.error_message = (
+            'dry-run 요청과 leap_faceup_v1 shadow action을 확인했습니다. '
+            '모터 명령은 보내지 않았습니다.' if goal.policy_id else
+            'dry-run 요청을 검증했습니다. 모터 명령은 보내지 않았습니다.')
         feedback.state = feedback.STATE_COMPLETED
         feedback.message = result.error_message
         goal_handle.publish_feedback(feedback)

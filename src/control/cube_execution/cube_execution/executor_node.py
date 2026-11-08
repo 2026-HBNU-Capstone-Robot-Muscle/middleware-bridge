@@ -5,6 +5,7 @@ import uuid
 from collections import OrderedDict
 from threading import Lock
 
+import numpy as np
 import rclpy
 from rclpy.action import (
     ActionClient,
@@ -16,14 +17,31 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from cube_execution.calibration import validate_calibration_file
-from system_interfaces.action import ExecuteCubeSolution, ExecuteHandPrimitive
-from system_interfaces.msg import CubeExecutionStatus, CubeSolution
+from system_interfaces.action import (
+    ExecuteCubeSolution, ExecuteHandPrimitive, InferHandPolicy)
+from system_interfaces.msg import (
+    CubeExecutionStatus, CubeSolution, OpenLoopPolicyState)
+from leap_hand_control.observation_builder import LeapObservationBuilder
 
 
 _MOVE_PATTERN = re.compile(r"^[URFDLB](?:2|')?$")
 _FACES = 'URFDLB'
 _MAX_SAVED_SOLUTIONS = 32
 _WORKFLOW_ID = 'two_hand_layer_turn_v1'
+_POLICY_BY_HAND = {
+    'leap_hand': 'leap_faceup_v1',
+    'custom_hand': 'custom_finger_ppo_v1',
+}
+_LEAP_ACTION_SCALE = 0.2
+_LEAP_LOW = np.array([
+    -0.314, -1.047, -0.2, -0.2, -0.314, -1.047, -0.2, -0.2,
+    -0.314, -1.047, -0.2, -0.2, -0.349, -0.47, -1.2, -1.34])
+_LEAP_HIGH = np.array([
+    2.23, 1.047, 1.885, 2.042, 2.23, 1.047, 1.885, 2.042,
+    2.23, 1.047, 1.885, 2.042, 2.094, 2.443, 1.9, 1.88])
+_CUSTOM_LOW = np.array([-0.0873, 0.0, -0.0441, 0.0])
+_CUSTOM_HIGH = np.array([2.0071, 2.0944, 2.0503, 2.0944])
+_FACE_ORDER = 'URFDLB'
 
 
 def validate_solution(solution):
@@ -131,6 +149,9 @@ class CubeSequenceExecutor(Node):
                 self, ExecuteHandPrimitive, '/custom_hand/execute_primitive',
                 callback_group=self._callback_group),
         }
+        self._policy_client = ActionClient(
+            self, InferHandPolicy, '/policy/infer',
+            callback_group=self._callback_group)
         self._action_server = ActionServer(
             self,
             ExecuteCubeSolution,
@@ -230,6 +251,26 @@ class CubeSequenceExecutor(Node):
                 'calibration 기록은 통과했지만 실제 모터 드라이버와 안전 정지 adapter는 아직 구현되지 않았습니다.',
                 total_moves=len(solution.moves))
 
+        if goal.run_pretrained_policies:
+            state_error = self._validate_open_loop_state(
+                goal.initial_open_loop_state)
+            if state_error:
+                return self._fail(
+                    goal_handle, result, workflow_id, 'INVALID_OPEN_LOOP_STATE',
+                    state_error, total_moves=len(solution.moves))
+            if not self._policy_client.wait_for_server(timeout_sec=0.5):
+                return self._fail(
+                    goal_handle, result, workflow_id, 'POLICY_SERVER_NOT_READY',
+                    '/policy/infer action server에 연결할 수 없습니다.',
+                    total_moves=len(solution.moves))
+            open_state = self._copy_open_loop_state(goal.initial_open_loop_state)
+            leap_builder = LeapObservationBuilder()
+            previous_goal_face = ''
+        else:
+            open_state = None
+            leap_builder = None
+            previous_goal_face = ''
+
         plan = compile_workflow(solution.moves)
         result.completed_steps = 0
         result.completed_moves = 0
@@ -268,8 +309,61 @@ class CubeSequenceExecutor(Node):
                 current_move=step['cube_move'], step_index=step_index,
                 total_steps=total_steps, hand_id=step['hand_id'],
                 primitive_id=step['primitive_id'],
-                message='hand primitive dry-run을 실행합니다. 모터 명령은 비활성화되어 있습니다.')
+                message=('고정 사전학습 모델의 dry-run 추론과 hand primitive를 실행합니다.'
+                         if goal.run_pretrained_policies else
+                         'hand primitive dry-run을 실행합니다. 모터 명령은 비활성화되어 있습니다.'))
             self._publish_feedback(goal_handle, status)
+
+            if goal.run_pretrained_policies:
+                policy_id = _POLICY_BY_HAND[step['hand_id']]
+                try:
+                    observation, goal_quat = self._build_open_loop_observation(
+                        open_state, leap_builder, step, previous_goal_face)
+                except (ValueError, FloatingPointError) as exc:
+                    return self._fail(
+                        goal_handle, result, workflow_id,
+                        'OPEN_LOOP_OBSERVATION_FAILED', str(exc),
+                        move_index=step['move_index'], total_moves=total_moves,
+                        current_move=step['cube_move'], step_index=step_index,
+                        total_steps=total_steps, hand_id=step['hand_id'],
+                        primitive_id=step['primitive_id'])
+                policy_result, policy_error = await self._infer_policy(
+                    goal_handle, goal, result, step_index, step,
+                    policy_id, observation)
+                if policy_result is None or not policy_result.success:
+                    if goal_handle.is_cancel_requested:
+                        result.error_code = 'CANCELLED'
+                        result.error_message = '정책 추론 경계에서 실행이 취소되었습니다.'
+                        goal_handle.canceled()
+                        return result
+                    code = (policy_result.error_code if policy_result is not None
+                            else 'POLICY_INFERENCE_FAILED')
+                    message = (policy_result.error_message if policy_result is not None
+                               else policy_error)
+                    return self._fail(
+                        goal_handle, result, workflow_id, code, message,
+                        move_index=step['move_index'], total_moves=total_moves,
+                        current_move=step['cube_move'], step_index=step_index,
+                        total_steps=total_steps, hand_id=step['hand_id'],
+                        primitive_id=step['primitive_id'])
+                action_values = list(policy_result.action_values)
+                result.policy_ids.append(policy_id)
+                result.policy_action_sizes.append(len(action_values))
+                result.policy_action_values.extend(action_values)
+                self._advance_open_loop_state(
+                    open_state, leap_builder, step, action_values, goal_quat)
+                previous_goal_face = step['target_face']
+                policy_status = self._publish_status(
+                    goal.scan_id, result.execution_id, workflow_id,
+                    CubeExecutionStatus.STATE_EXECUTING,
+                    move_index=step['move_index'], total_moves=total_moves,
+                    current_move=step['cube_move'], step_index=step_index,
+                    total_steps=total_steps, hand_id=step['hand_id'],
+                    primitive_id=step['primitive_id'],
+                    message=f'{policy_id} deterministic 추론 완료; shadow action을 primitive로 전달합니다.')
+                self._publish_feedback(goal_handle, policy_status)
+                step['policy_id'] = policy_id
+                step['policy_action_values'] = action_values
 
             hand_result, error_message = await self._dispatch_step(
                 goal_handle, goal, result, step_index, step)
@@ -310,8 +404,11 @@ class CubeSequenceExecutor(Node):
         result.success = True
         result.error_code = ''
         result.error_message = (
-            '풀이를 hand primitive 단계로 전개하고 두 adapter의 dry-run 응답을 확인했습니다. '
-            '물리 동작은 하지 않았습니다.')
+            ('풀이를 hand primitive 단계로 전개하고 고정 모델 추론 및 두 adapter의 '
+             'dry-run 응답을 확인했습니다. 상태 갱신은 이상적 계획 가정이며 물리 동작은 하지 않았습니다.'
+             if goal.run_pretrained_policies else
+             '풀이를 hand primitive 단계로 전개하고 두 adapter의 dry-run 응답을 확인했습니다. '
+             '물리 동작은 하지 않았습니다.'))
         goal_handle.succeed()
         final_status = self._publish_status(
             goal.scan_id, result.execution_id, workflow_id,
@@ -337,6 +434,8 @@ class CubeSequenceExecutor(Node):
         request.clockwise_quarter_turns = step['clockwise_quarter_turns']
         request.primitive_id = step['primitive_id']
         request.dry_run = True
+        request.policy_id = step.get('policy_id', '')
+        request.policy_action_values = step.get('policy_action_values', [])
 
         try:
             child_goal = await client.send_goal_async(request)
@@ -361,6 +460,191 @@ class CubeSequenceExecutor(Node):
             return wrapped_result.result, ''
         except Exception as exc:  # ROS action transport errors become action results.
             return None, f"{step['hand_id']} action 오류: {exc}"
+
+    async def _infer_policy(
+            self, parent_goal_handle, parent_goal, parent_result, step_index,
+            step, policy_id, observation):
+        request = InferHandPolicy.Goal()
+        request.scan_id = parent_goal.scan_id
+        request.execution_id = parent_result.execution_id
+        request.step_index = step_index
+        request.hand_id = step['hand_id']
+        request.policy_id = policy_id
+        request.observation = np.asarray(observation, dtype=np.float64).tolist()
+        try:
+            goal_handle = await self._policy_client.send_goal_async(request)
+            if not goal_handle.accepted:
+                return None, '정책 추론 액션 목표가 거부됐습니다.'
+            result_future = goal_handle.get_result_async()
+            cancellation = {'sent': False}
+
+            def cancel_policy_if_requested():
+                if (parent_goal_handle.is_cancel_requested
+                        and not cancellation['sent']):
+                    cancellation['sent'] = True
+                    goal_handle.cancel_goal_async()
+
+            timer = self.create_timer(
+                0.05, cancel_policy_if_requested,
+                callback_group=self._callback_group)
+            try:
+                wrapped = await result_future
+            finally:
+                timer.cancel()
+                self.destroy_timer(timer)
+            return wrapped.result, ''
+        except Exception as exc:
+            return None, f'정책 추론 action 오류: {exc}'
+
+    @staticmethod
+    def _validate_open_loop_state(state):
+        quaternion = np.array([
+            state.cube_orientation.x, state.cube_orientation.y,
+            state.cube_orientation.z, state.cube_orientation.w])
+        face_normals = np.asarray(
+            state.face_normals_cube_frame_urfdlb, dtype=np.float64).reshape(6, 3)
+        palm_minus_cube = np.asarray(
+            state.palm_minus_cube_position_m, dtype=np.float64)
+        leap_positions = np.asarray(
+            state.leap_command_positions_rad, dtype=np.float64)
+        custom_positions = np.asarray(
+            state.custom_policy_positions, dtype=np.float64)
+        custom_velocities = np.asarray(
+            state.custom_policy_velocities, dtype=np.float64)
+        values = np.concatenate([
+            quaternion, face_normals.ravel(), palm_minus_cube, leap_positions,
+            custom_positions, custom_velocities])
+        if not np.all(np.isfinite(values)):
+            return '초기 open-loop 상태의 모든 값은 유한해야 합니다.'
+        norm = float(np.linalg.norm(quaternion))
+        if norm < 1e-8 or abs(norm - 1.0) > 1e-3:
+            return 'cube_orientation은 정규화된 x,y,z,w quaternion이어야 합니다.'
+        normal_lengths = np.linalg.norm(face_normals, axis=1)
+        if np.any(np.abs(normal_lengths - 1.0) > 1e-3):
+            return 'URFDLB 면 법선은 cube frame에서 각각 단위 벡터여야 합니다.'
+        if (abs(float(face_normals[0] @ face_normals[3]) + 1.0) > 1e-3
+                or abs(float(face_normals[1] @ face_normals[4]) + 1.0) > 1e-3
+                or abs(float(face_normals[2] @ face_normals[5]) + 1.0) > 1e-3):
+            return 'URFDLB의 마주 보는 면 법선은 서로 반대 방향이어야 합니다.'
+        if any(abs(float(face_normals[a] @ face_normals[b])) > 1e-3
+               for a, b in ((0, 1), (0, 2), (1, 2))):
+            return '서로 다른 큐브 축의 면 법선은 직교해야 합니다.'
+        if (np.any(leap_positions < _LEAP_LOW)
+                or np.any(leap_positions > _LEAP_HIGH)):
+            return 'LEAP 초기 관절 위치가 참고 정책의 안전 범위를 벗어났습니다.'
+        if (np.any(custom_positions < _CUSTOM_LOW)
+                or np.any(custom_positions > _CUSTOM_HIGH)):
+            return 'Custom 초기 정책 위치가 CTRL 범위를 벗어났습니다.'
+        return None
+
+    @staticmethod
+    def _copy_open_loop_state(source):
+        state = OpenLoopPolicyState()
+        state.header = source.header
+        state.cube_orientation = source.cube_orientation
+        state.face_normals_cube_frame_urfdlb = list(
+            source.face_normals_cube_frame_urfdlb)
+        state.palm_minus_cube_position_m = list(source.palm_minus_cube_position_m)
+        state.leap_command_positions_rad = list(source.leap_command_positions_rad)
+        state.custom_policy_positions = list(source.custom_policy_positions)
+        state.custom_policy_velocities = list(source.custom_policy_velocities)
+        return state
+
+    @staticmethod
+    def _quat_normalize(q):
+        q = np.asarray(q, dtype=np.float64)
+        norm = float(np.linalg.norm(q))
+        if norm < 1e-12 or not np.isfinite(norm):
+            raise ValueError('Quaternion norm is zero or non-finite.')
+        return q / norm
+
+    @staticmethod
+    def _quat_multiply(a, b):
+        w1, x1, y1, z1 = a
+        w2, x2, y2, z2 = b
+        return np.array([
+            w1*w2 - x1*x2 - y1*y2 - z1*z2,
+            w1*x2 + x1*w2 + y1*z2 - z1*y2,
+            w1*y2 - x1*z2 + y1*w2 + z1*x2,
+            w1*z2 + x1*y2 - y1*x2 + z1*w2,
+        ], dtype=np.float64)
+
+    @staticmethod
+    def _rotate_vector(q, vector):
+        from leap_hand_control.observation_builder import quat_to_mat
+        return quat_to_mat(q) @ np.asarray(vector, dtype=np.float64)
+
+    @classmethod
+    def _face_up_goal(cls, cube_quat_xyzw, face_normal_cube):
+        cube_wxyz = cls._quat_normalize([
+            cube_quat_xyzw[3], cube_quat_xyzw[0],
+            cube_quat_xyzw[1], cube_quat_xyzw[2]])
+        normal = cls._rotate_vector(cube_wxyz, face_normal_cube)
+        normal /= np.linalg.norm(normal)
+        up = np.array([0.0, 0.0, 1.0])
+        dot = float(np.clip(normal @ up, -1.0, 1.0))
+        if dot > 1.0 - 1e-10:
+            delta = np.array([1.0, 0.0, 0.0, 0.0])
+        elif dot < -1.0 + 1e-10:
+            axis = np.cross(normal, np.array([1.0, 0.0, 0.0]))
+            if np.linalg.norm(axis) < 1e-8:
+                axis = np.cross(normal, np.array([0.0, 1.0, 0.0]))
+            axis /= np.linalg.norm(axis)
+            delta = np.concatenate([[0.0], axis])
+        else:
+            cross = np.cross(normal, up)
+            delta = cls._quat_normalize(np.concatenate([[1.0 + dot], cross]))
+        return cls._quat_normalize(cls._quat_multiply(delta, cube_wxyz))
+
+    @classmethod
+    def _build_open_loop_observation(
+            cls, state, builder, step, previous_goal_face):
+        if step['hand_id'] == 'leap_hand':
+            orientation = state.cube_orientation
+            cube_xyzw = np.array([
+                orientation.x, orientation.y, orientation.z, orientation.w])
+            cube_wxyz = cls._quat_normalize(
+                [cube_xyzw[3], cube_xyzw[0], cube_xyzw[1], cube_xyzw[2]])
+            face_normals = np.asarray(
+                state.face_normals_cube_frame_urfdlb,
+                dtype=np.float64).reshape(6, 3)
+            face_normal = face_normals[_FACE_ORDER.index(step['target_face'])]
+            goal = cls._face_up_goal(cube_xyzw, face_normal)
+            if previous_goal_face != step['target_face']:
+                builder.fill_orientation_history(cube_wxyz, goal)
+            q = np.asarray(state.leap_command_positions_rad, dtype=np.float64)
+            palm_minus_cube = np.asarray(
+                state.palm_minus_cube_position_m, dtype=np.float64)
+            obs = builder.build(
+                q, q, palm_minus_cube, np.zeros(3), cube_wxyz, goal)
+            return obs, goal
+        positions = np.asarray(state.custom_policy_positions, dtype=np.float64)
+        velocities = np.asarray(state.custom_policy_velocities, dtype=np.float64)
+        return np.concatenate([positions, velocities]), None
+
+    @classmethod
+    def _advance_open_loop_state(
+            cls, state, builder, step, action_values, goal_quat):
+        action = np.asarray(action_values, dtype=np.float64)
+        if step['hand_id'] == 'leap_hand':
+            if action.shape != (16,):
+                raise ValueError('LEAP policy action must have 16 values.')
+            q = np.asarray(state.leap_command_positions_rad, dtype=np.float64)
+            q = np.clip(q + _LEAP_ACTION_SCALE * action, _LEAP_LOW, _LEAP_HIGH)
+            state.leap_command_positions_rad = q.tolist()
+            builder.set_last_action(action)
+            # Idealized open-loop assumption: successful face-up primitive reaches goal pose.
+            state.cube_orientation.x = float(goal_quat[1])
+            state.cube_orientation.y = float(goal_quat[2])
+            state.cube_orientation.z = float(goal_quat[3])
+            state.cube_orientation.w = float(goal_quat[0])
+        else:
+            if action.shape != (4,):
+                raise ValueError('Custom policy action must have 4 values.')
+            action = np.clip(action, -1.0, 1.0)
+            targets = _CUSTOM_LOW + (action + 1.0) * 0.5 * (_CUSTOM_HIGH - _CUSTOM_LOW)
+            state.custom_policy_positions = targets.tolist()
+            state.custom_policy_velocities = [0.0] * 4
 
     def _fail(
             self, goal_handle, result, workflow_id, error_code, message,

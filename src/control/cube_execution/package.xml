@@ -8,6 +8,8 @@
   <license>TODO: License declaration</license>
 
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>leap_hand_control</exec_depend>
   <exec_depend>system_interfaces</exec_depend>
 
   <export>
