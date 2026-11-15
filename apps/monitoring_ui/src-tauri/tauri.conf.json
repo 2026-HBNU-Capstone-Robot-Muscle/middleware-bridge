@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Middleware Bridge ROS 2 Check",
+  "productName": "Middleware Bridge Cube Control Desk",
   "version": "0.1.0",
   "identifier": "dev.middlewarebridge.ros2check",
   "build": {
@@ -9,11 +9,11 @@
   "app": {
     "windows": [
       {
-        "title": "ROS 2 연결 점검",
-        "width": 1120,
-        "height": 850,
-        "minWidth": 720,
-        "minHeight": 640
+        "title": "큐브 조작 스테이션 · Middleware Bridge",
+        "width": 1440,
+        "height": 1000,
+        "minWidth": 920,
+        "minHeight": 700
       }
     ],
     "security": {

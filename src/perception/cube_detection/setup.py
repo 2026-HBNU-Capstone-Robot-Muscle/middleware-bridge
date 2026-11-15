@@ -29,6 +29,7 @@ setup(
             'cube_state_assembler = cube_detection.state_assembler_node:main',
             'cube_offline_replay = cube_detection.offline_replay_node:main',
             'cube_camera_capture = cube_detection.camera_capture_node:main',
+            'cube_camera_manager = cube_detection.camera_manager_node:main',
         ],
     },
 )

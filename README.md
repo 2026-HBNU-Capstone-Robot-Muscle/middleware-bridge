@@ -2,6 +2,34 @@
 
 Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐브 면을 수집해 URFDLB 상태를 만들고 Kociemba 풀이를 생성한 뒤, ROS 2 action으로 LEAP Hand와 Custom Hand의 동작 순서를 실행하는 구조입니다. 현재 인식·풀이 및 hand 동작 orchestration은 연결되어 있으며, 조작 경로는 dry-run입니다. 실제 pose·관절 입력과 모터 구동은 아직 연결되지 않았습니다.
 
+## 실행 방법
+
+#### 프로그램 실행
+> 기존 4개의 창을 활성화해야 한 것을 하나의 실행파일로 축소
+
+- windows
+```powershell
+./scripts/windows/start_gui_dryrun.bat
+```
+
+- MacOS
+```
+.\scripts\windows\start_gui_dryrun.ps1
+```
+
+#### 프로그램 정지
+> 프로그램을 정지하지 않을 경우 컴퓨터 전원을 껐다 켜지 않는 이상 위의 스크립트가 작동되지 않음
+
+- windows
+```powershell
+./scripts/windows/stop_gui_dryrun.bat
+```
+
+- MacOS
+```
+.\scripts\windows\stop_gui_dryrun.ps1
+```
+
 ## 처리 흐름
 
 ```text
@@ -29,8 +57,8 @@ Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐
 | `src/policy/rl_policy` | 정책 관련 ROS 패키지 |
 | `src/system_bringup` | 정책 입력 bridge 및 통합 실행 구성 |
 | `src/system_interfaces` | 프로젝트 ROS 메시지·서비스·action 정의 |
-| `apps/monitoring_ui` | rosbridge WebSocket 연결 점검용 Tauri UI |
-| `scripts` | Windows rosbridge 실행기와 저장 풀이 dry-run 검사 도구 |
+| `apps/monitoring_ui` | 큐브 풀이 3D 시뮬레이션·ROS 상태 모니터링 및 dry-run 제어용 Tauri UI |
+| `scripts` | Windows 원클릭 GUI dry-run 실행기, rosbridge 도우미 및 풀이 검사 도구 |
 | `results/cube_solutions` | 카메라 인식에서 생성한 풀이 JSON |
 | `docs` | 설치, 아키텍처, ROS 계약 및 개발 기록 |
 
@@ -60,6 +88,8 @@ ROS 2 도구가 인식되지 않으면 해당 PowerShell에서 overlay가 적용
 |---|---|
 | `/cube/solve` — `system_interfaces/srv/SolveCube` | URFDLB facelet 입력의 유효성을 검사하고 풀이 수열을 반환 |
 | `/cube/solution` — `system_interfaces/msg/CubeSolution` | 인식된 큐브 상태와 풀이 수열 전달 |
+| `/cube/set_camera_enabled` — `system_interfaces/srv/SetCameraEnabled` | GUI에서 카메라 캡처 노드 시작·중지 |
+| `/cube/camera_active` — `std_msgs/msg/Bool` | 카메라 캡처 활성 상태 전달 |
 | `/cube/execute_solution` — `system_interfaces/action/ExecuteCubeSolution` | 저장된 풀이를 두 손 primitive workflow로 dry-run 실행 |
 | `/cube/execution_status` — `system_interfaces/msg/CubeExecutionStatus` | 실행 단계·완료·실패·취소 상태 발행 |
 | `/leap_hand/execute_primitive` | LEAP 방향 정렬·지지 primitive action |
@@ -94,4 +124,4 @@ python scripts\ros2_dryrun_check.py --mode cancel
 
 실기 코드에서 찾은 포트·모터·제어 설정은 [하드웨어 설정표](docs/hardware-setting.md)에, 실물 전 남은 입력·보정·안전 항목은 [미완료 목록](docs/incomplete.md)에 기록했습니다.
 
-Tauri 연결 점검 앱은 기본 `ws://127.0.0.1:9090` rosbridge에 연결합니다. Windows rosbridge 실행과 UI 검증 범위는 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.
+Tauri 큐브 조작 GUI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 풀이와 실행 피드백을 표시하고 dry-run action을 요청합니다. 실행 방법은 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.
