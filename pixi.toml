@@ -17,4 +17,4 @@ torch = "==2.15.0"
 [tasks]
 list-packages = "colcon list --base-paths src"
 build-windows = "colcon --log-base .colcon-win/log build --executor sequential --merge-install --base-paths src --build-base .colcon-win/build --install-base .colcon-win/install"
-rosbridge = "python scripts/windows/run_rosbridge.py"
+rosbridge = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/run_rosbridge.ps1"

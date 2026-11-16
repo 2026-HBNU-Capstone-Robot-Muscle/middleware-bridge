@@ -26,6 +26,7 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 ├── scripts/
 │   └── windows/
 │       ├── run_rosbridge.py          # Windows 호환 rosbridge 실행 스크립트
+│       ├── run_rosbridge.ps1         # ROS overlay를 적용해 사용자 정의 인터페이스 사용
 │       ├── test_rosbridge_ws.ps1     # PowerShell 토픽 왕복·서비스 확인 스크립트
 │       ├── run_ros_node.ps1          # colcon overlay에서 ROS 노드 실행
 │       ├── start_gui_dryrun.bat      # GUI와 ROS dry-run 스택 원클릭 시작

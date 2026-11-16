@@ -33,7 +33,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\monitoring_ui\scripts
 파일 탐색기에서 `scripts\windows\start_gui_dryrun.bat`을 더블클릭합니다. 바로가기는 한 개의 PowerShell 창에서 다음 준비를 순서대로 처리합니다.
 
 1. 정적 GUI 파일 생성
-2. rosbridge를 시작하고 `127.0.0.1:9090` 준비 확인
+2. `.colcon-win/install/local_setup.ps1` ROS overlay를 적용해 rosbridge를 시작하고 `127.0.0.1:9090` 준비 확인
 3. `/cube/solve` 서비스와 YOLO detector 시작
 4. LEAP Hand, Custom Hand, 큐브 실행 dry-run 서버 시작
 5. 카메라 관리 노드를 시작하고 GUI 버튼 요청을 기다림
