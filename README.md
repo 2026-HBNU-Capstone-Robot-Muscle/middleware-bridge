@@ -123,4 +123,4 @@ python scripts\ros2_dryrun_check.py --mode cancel
 
 실기 코드에서 찾은 포트·모터·제어 설정은 [하드웨어 설정표](docs/hardware-setting.md)에, 실물 전 남은 입력·보정·안전 항목은 [미완료 목록](docs/incomplete.md)에 기록했습니다.
 
-Tauri 큐브 조작 GUI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 풀이와 실행 피드백을 표시하고 dry-run action을 요청합니다. 실행 방법은 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.
+Tauri 큐브 조작 GUI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 풀이와 실행 피드백을 표시합니다. 실행 모드는 dry-run이 기본이며 `/cube/real_mode_ready` 준비 신호가 없으면 실물 모드 전환이 잠깁니다. 현재 middleware는 실물 구동 adapter를 제공하지 않습니다. 실행 방법은 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.

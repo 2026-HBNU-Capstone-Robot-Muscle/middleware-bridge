@@ -37,6 +37,14 @@ h1, h2, p { margin-top: 0; }
 h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.045em; }
 h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.025em; }
 .topbar-status { gap: 9px; }
+.mode-control { display: flex; align-items: center; gap: 9px; border: 1px solid #735f39; border-radius: 10px; padding: 6px 9px; background: #282318; color: #e8c779; }
+.mode-control[data-mode="real"] { border-color: #704146; background: #2b1c21; color: #ff9b9f; }
+.mode-control[data-ready="true"] { border-color: #365847; }
+.mode-copy { display: grid; gap: 3px; text-align: right; }
+.mode-copy strong { font: 600 9px var(--mono); letter-spacing: .045em; }
+.mode-copy small { max-width: 190px; color: #a99b78; font-size: 8px; }
+.mode-control[data-mode="real"] .mode-copy small { color: #c28b8e; }
+.mode-toggle { flex: 0 0 auto; }
 .mode-badge, .connection-state, .small-status { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 10px; color: var(--muted); font: 500 9px var(--mono); letter-spacing: .045em; white-space: nowrap; }
 .mode-badge { border-color: #735f39; background: #282318; color: #e8c779; }
 .mode-badge i, .connection-state i, .pulse-dot, .topic-led { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
