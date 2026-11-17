@@ -34,6 +34,7 @@ const PRIMITIVE_LABEL = {
   release_upper_layer: '파지 해제',
 };
 const PREVIEW_MOVE_MS = 800;
+const CUBE_DISPLAY_SCALE = 0.5;
 const canvas = document.querySelector('#cube-canvas');
 const ctx = canvas.getContext('2d');
 const $ = (selector) => document.querySelector(selector);
@@ -813,7 +814,7 @@ function viewTransform(point) {
 }
 
 function project(point, width, height) {
-  const transformed = viewTransform(point);
+  const transformed = viewTransform(point.map((value) => value * CUBE_DISPLAY_SCALE));
   const distance = 7.2 - transformed[2];
   const focal = Math.min(width, height) * 2.8;
   return { x: width / 2 + transformed[0] * focal / distance, y: height * 0.49 - transformed[1] * focal / distance, depth: transformed[2] };
