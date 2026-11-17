@@ -7,27 +7,15 @@ Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐
 #### 프로그램 실행
 > 기존 4개의 창을 활성화해야 한 것을 하나의 실행파일로 축소
 
-- windows
 ```powershell
-./scripts/windows/start_gui_dryrun.bat
-```
-
-- MacOS
-```
-.\scripts\windows\start_gui_dryrun.ps1
+./start.bat
 ```
 
 #### 프로그램 정지
 > 프로그램을 정지하지 않을 경우 컴퓨터 전원을 껐다 켜지 않는 이상 위의 스크립트가 작동되지 않음
 
-- windows
 ```powershell
-./scripts/windows/stop_gui_dryrun.bat
-```
-
-- MacOS
-```
-.\scripts\windows\stop_gui_dryrun.ps1
+./stop.bat
 ```
 
 ## 처리 흐름
