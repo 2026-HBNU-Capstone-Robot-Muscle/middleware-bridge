@@ -75,8 +75,12 @@
           </div>
           <div class="camera-toolbar">
             <div><strong>카메라 인식</strong><small id="camera-state">ROS 연결 후 카메라를 시작할 수 있습니다.</small></div>
-            <button id="camera-toggle" class="button button-camera" type="button" disabled>카메라 시작</button>
+            <div class="camera-toolbar-actions">
+              <button id="camera-refresh" class="button button-secondary" type="button" disabled>카메라 검색</button>
+              <button id="camera-toggle" class="button button-camera" type="button" disabled>선택 카메라 촬영</button>
+            </div>
           </div>
+          <div id="camera-choices" class="camera-choices" aria-label="감지된 카메라"></div>
           <div class="canvas-wrap" id="canvas-wrap">
             <canvas id="cube-canvas" aria-label="풀이 수열을 보여주는 3D 큐브"></canvas>
             <div id="canvas-empty" class="canvas-empty"><span class="empty-cube">▦</span><strong>풀이 수신 대기</strong><small>ROS2에서 /cube/solution을 받으면 큐브를 표시합니다.</small></div>

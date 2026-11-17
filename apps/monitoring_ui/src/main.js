@@ -5,6 +5,7 @@ const ROS = {
   executionType: 'system_interfaces/msg/CubeExecutionStatus',
   cameraStateTopic: '/cube/camera_active',
   cameraStateType: 'std_msgs/msg/Bool',
+  cameraListService: '/cube/list_cameras',
   cameraService: '/cube/set_camera_enabled',
   hardwareReadyTopic: '/cube/real_mode_ready',
   hardwareReadyType: 'std_msgs/msg/Bool',
@@ -46,6 +47,15 @@ let activeScanId = '';
 let activeExecutionId = '';
 let cameraRequestId = '';
 let cameraRequestTimer = 0;
+let cameraListRequestId = '';
+let cameraListRequestTimer = 0;
+let cameraIndices = [];
+let cameraListKnown = false;
+let selectedCameraIndex = -1;
+let activeCameraIndex = -1;
+let pendingCameraIndex = -1;
+let cameraRequestEnabled = false;
+let cameraRequestIndex = -1;
 let cameraActive = false;
 let cameraStateKnown = false;
 let realMode = false;
@@ -119,6 +129,7 @@ function subscribeTopics() {
   send({ op: 'subscribe', id: 'monitor-execution-status', topic: ROS.executionTopic, type: ROS.executionType, throttle_rate: 0, queue_length: 10 });
   send({ op: 'subscribe', id: 'monitor-camera-active', topic: ROS.cameraStateTopic, type: ROS.cameraStateType, throttle_rate: 0, queue_length: 1 });
   send({ op: 'subscribe', id: 'monitor-hardware-ready', topic: ROS.hardwareReadyTopic, type: ROS.hardwareReadyType, throttle_rate: 0, queue_length: 1 });
+  requestCameraList();
   $('#solution-signal-detail').textContent = 'CubeSolution · 구독 요청 전송';
   $('#execution-signal-detail').textContent = 'CubeExecutionStatus · 구독 요청 전송';
   recordEvent('ROS', '풀이 및 실행 상태 토픽 구독을 요청했습니다.');
@@ -156,8 +167,19 @@ function connect(url) {
     if (socket !== ws) return;
     clearTimeout(actionAckTimer);
     clearTimeout(cameraRequestTimer);
+    clearTimeout(cameraListRequestTimer);
     cameraRequestTimer = 0;
+    cameraListRequestTimer = 0;
     cameraRequestId = '';
+    cameraListRequestId = '';
+    cameraRequestEnabled = false;
+    cameraRequestIndex = -1;
+    pendingCameraIndex = -1;
+    cameraActive = false;
+    activeCameraIndex = -1;
+    cameraListKnown = false;
+    cameraIndices = [];
+    selectedCameraIndex = -1;
     hardwareReady = false;
     hardwareReadyAt = 0;
     realMode = false;
@@ -169,6 +191,7 @@ function connect(url) {
     $('#solution-signal-detail').textContent = '다시 연결하면 구독이 복구됩니다.';
     $('#execution-signal-detail').textContent = '다시 연결하면 구독이 복구됩니다.';
     $('#camera-state').textContent = 'ROS 연결 끊김 · 카메라 상태 확인 불가';
+    renderCameraChoices();
     updateModeControl();
     recordEvent('ROS', `rosbridge 연결 종료 · 코드 ${event.code}`);
     if (activeActionId) {
@@ -198,11 +221,42 @@ function handleRosMessage(message) {
   if (message.op === 'publish' && message.topic === ROS.cameraStateTopic) {
     cameraActive = Boolean(message.msg?.data);
     cameraStateKnown = true;
+    if (!cameraActive) activeCameraIndex = -1;
     updateCameraState();
+    renderCameraChoices();
     return;
   }
   if (message.op === 'publish' && message.topic === ROS.hardwareReadyTopic) {
     updateHardwareReadiness(Boolean(message.msg?.data));
+    return;
+  }
+  if (message.op === 'service_response' && message.id === cameraListRequestId) {
+    clearTimeout(cameraListRequestTimer);
+    cameraListRequestTimer = 0;
+    cameraListRequestId = '';
+    const values = message.values || {};
+    if (message.result === false) {
+      cameraListKnown = false;
+      $('#camera-state').textContent = `카메라 목록 요청 실패 · ${String(message.values?.message || '카메라 관리 노드를 확인하세요.')}`;
+      recordEvent('카메라 오류', $('#camera-state').textContent);
+    } else {
+      cameraIndices = Array.isArray(values.camera_indices) ? values.camera_indices.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index <= 2).slice(0, 3) : [];
+      cameraActive = Boolean(values.active);
+      activeCameraIndex = cameraActive ? Number(values.active_camera_index) : -1;
+      cameraStateKnown = true;
+      cameraListKnown = true;
+      const preferredIndex = Number(values.preferred_camera_index);
+      if (!cameraIndices.includes(selectedCameraIndex)) {
+        selectedCameraIndex = activeCameraIndex >= 0
+          ? activeCameraIndex
+          : (cameraIndices.includes(preferredIndex) ? preferredIndex : (cameraIndices[0] ?? -1));
+      }
+      $('#camera-state').textContent = String(values.message || `카메라 ${cameraIndices.length}대 감지`);
+      recordEvent('카메라', `카메라 검색 완료 · ${cameraIndices.length}대 감지${cameraIndices.length ? ` · index ${cameraIndices.join(', ')}` : ''}`);
+      updateCameraState();
+    }
+    renderCameraChoices();
+    updateControls();
     return;
   }
   if (message.op === 'service_response' && message.id === cameraRequestId) {
@@ -212,14 +266,26 @@ function handleRosMessage(message) {
     const values = message.values || {};
     cameraActive = Boolean(values.active);
     cameraStateKnown = true;
+    activeCameraIndex = cameraActive ? Number(values.active_camera_index ?? cameraRequestIndex) : -1;
+    if (cameraRequestEnabled && cameraActive) selectedCameraIndex = activeCameraIndex;
+    const requestEnabled = cameraRequestEnabled;
+    cameraRequestEnabled = false;
+    cameraRequestIndex = -1;
     updateCameraState();
     if (message.result === false || !values.success) {
+      pendingCameraIndex = -1;
       const detail = String(values.message || '카메라 제어 서비스가 요청을 완료하지 못했습니다.');
       $('#camera-state').textContent = `오류 · ${detail}`;
       recordEvent('카메라 오류', detail);
     } else {
       recordEvent('카메라', String(values.message || (cameraActive ? '카메라가 시작되었습니다.' : '카메라가 중지되었습니다.')));
+      if (!requestEnabled && pendingCameraIndex >= 0) {
+        const nextIndex = pendingCameraIndex;
+        pendingCameraIndex = -1;
+        requestCamera(true, nextIndex);
+      }
     }
+    renderCameraChoices();
     updateControls();
     return;
   }
@@ -252,7 +318,19 @@ function handleRosMessage(message) {
       clearTimeout(cameraRequestTimer);
       cameraRequestTimer = 0;
       cameraRequestId = '';
+      cameraRequestEnabled = false;
+      cameraRequestIndex = -1;
+      pendingCameraIndex = -1;
       $('#camera-state').textContent = `제어 요청 오류 · ${String(message.msg || '카메라 서비스를 확인하세요.')}`;
+      updateControls();
+    }
+    if (message.id && message.id === cameraListRequestId) {
+      clearTimeout(cameraListRequestTimer);
+      cameraListRequestTimer = 0;
+      cameraListRequestId = '';
+      cameraListKnown = false;
+      $('#camera-state').textContent = `카메라 목록 오류 · ${String(message.msg || '카메라 관리 노드를 확인하세요.')}`;
+      renderCameraChoices();
       updateControls();
     }
     if (message.id && message.id === activeActionId) {
@@ -505,46 +583,137 @@ function updateCameraState() {
   const button = $('#camera-toggle');
   if (cameraActive) {
     button.classList.add('is-active');
-    status.textContent = '활성 · 카메라 창에서 Space로 면 촬영, R로 재촬영, Q로 종료';
+    status.textContent = `카메라 ${activeCameraIndex >= 0 ? activeCameraIndex : '선택'} 촬영 중 · Space 촬영, R 재촬영, Q 종료`;
     button.textContent = '카메라 중지';
   } else {
     button.classList.remove('is-active');
-    status.textContent = cameraStateKnown ? '비활성 · 시작 버튼을 눌러 카메라를 여세요.' : '상태 확인 중 · 시작 버튼을 눌러 요청할 수 있습니다.';
-    button.textContent = '카메라 시작';
+    status.textContent = cameraStateKnown
+      ? (selectedCameraIndex >= 0 ? `카메라 ${selectedCameraIndex} 선택 · 버튼을 눌러 촬영을 시작하세요.` : '감지된 카메라 중 하나를 선택하세요.')
+      : '카메라 상태 확인 중';
+    button.textContent = '선택 카메라 촬영';
   }
 }
 
-function toggleCamera() {
+function requestCameraList() {
+  if (!socket || socket.readyState !== WebSocket.OPEN || cameraListRequestId) return;
+  const id = `camera-list-${Date.now()}-${++requestNumber}`;
+  cameraListRequestId = id;
+  $('#camera-state').textContent = '카메라 0~2 검색 중…';
+  try {
+    send({ op: 'call_service', id, service: ROS.cameraListService, args: {} }, '연결된 카메라 검색 요청');
+    cameraListRequestTimer = window.setTimeout(() => {
+      if (cameraListRequestId !== id) return;
+      cameraListRequestId = '';
+      cameraListRequestTimer = 0;
+      cameraListKnown = false;
+      $('#camera-state').textContent = '카메라 검색 시간 초과 · 카메라 관리 노드를 확인하세요.';
+      recordEvent('카메라 오류', '카메라 목록 서비스 응답 시간 초과');
+      renderCameraChoices();
+      updateControls();
+    }, 15000);
+  } catch (error) {
+    cameraListRequestId = '';
+    $('#camera-state').textContent = `카메라 검색 실패 · ${error.message}`;
+    recordEvent('카메라 오류', error.message);
+  }
+  updateControls();
+}
+
+function requestCamera(enabled, cameraIndex) {
   if (!socket || socket.readyState !== WebSocket.OPEN || cameraRequestId) return;
-  const enabled = !cameraActive;
   const id = `camera-control-${Date.now()}-${++requestNumber}`;
   cameraRequestId = id;
-  $('#camera-state').textContent = enabled ? '카메라 시작 요청 중…' : '카메라 중지 요청 중…';
+  cameraRequestEnabled = enabled;
+  cameraRequestIndex = cameraIndex;
+  $('#camera-state').textContent = enabled ? `카메라 ${cameraIndex} 시작 요청 중…` : '카메라 중지 요청 중…';
   try {
-    send({ op: 'call_service', id, service: ROS.cameraService, args: { enabled } }, enabled ? '카메라 노드 시작 요청' : '카메라 노드 중지 요청');
+    send({ op: 'call_service', id, service: ROS.cameraService, args: { enabled, camera_index: cameraIndex } }, enabled ? `카메라 ${cameraIndex} 촬영 시작 요청` : '카메라 촬영 중지 요청');
     cameraRequestTimer = window.setTimeout(() => {
       if (cameraRequestId !== id) return;
       cameraRequestId = '';
       cameraRequestTimer = 0;
+      cameraRequestEnabled = false;
+      cameraRequestIndex = -1;
+      pendingCameraIndex = -1;
       $('#camera-state').textContent = '응답 시간 초과 · 카메라 관리 노드와 로그를 확인하세요.';
       recordEvent('카메라 오류', '카메라 제어 서비스 응답 시간 초과');
       updateControls();
     }, 12000);
   } catch (error) {
     cameraRequestId = '';
-    $('#camera-state').textContent = `제어 요청 실패 · ${error.message}`;
+    cameraRequestEnabled = false;
+    cameraRequestIndex = -1;
+    pendingCameraIndex = -1;
+    $('#camera-state').textContent = `카메라 제어 요청 실패 · ${error.message}`;
     recordEvent('카메라 오류', error.message);
   }
   updateControls();
 }
 
+function selectCamera(cameraIndex) {
+  if (!cameraIndices.includes(cameraIndex) || cameraRequestId) return;
+  selectedCameraIndex = cameraIndex;
+  renderCameraChoices();
+  if (cameraActive) {
+    if (activeCameraIndex === cameraIndex) return;
+    pendingCameraIndex = cameraIndex;
+    requestCamera(false, activeCameraIndex);
+    return;
+  }
+  requestCamera(true, cameraIndex);
+}
+
+function toggleCamera() {
+  if (cameraActive) {
+    pendingCameraIndex = -1;
+    requestCamera(false, activeCameraIndex);
+  } else if (selectedCameraIndex >= 0) {
+    requestCamera(true, selectedCameraIndex);
+  } else {
+    requestCameraList();
+  }
+}
+
+function renderCameraChoices() {
+  const container = $('#camera-choices');
+  if (!container) return;
+  container.replaceChildren();
+  if (!cameraListKnown) {
+    const message = document.createElement('span');
+    message.className = 'camera-empty';
+    message.textContent = '카메라 목록 검색 전';
+    container.append(message);
+    return;
+  }
+  if (!cameraIndices.length) {
+    const message = document.createElement('span');
+    message.className = 'camera-empty';
+    message.textContent = '감지된 카메라 없음 (index 0~2 검색 완료)';
+    container.append(message);
+    return;
+  }
+  for (const cameraIndex of cameraIndices) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'camera-choice';
+    if (cameraIndex === selectedCameraIndex) button.classList.add('is-selected');
+    if (cameraIndex === activeCameraIndex && cameraActive) button.classList.add('is-active');
+    button.textContent = cameraIndex === activeCameraIndex && cameraActive ? `카메라 ${cameraIndex} · 촬영 중` : `카메라 ${cameraIndex}`;
+    button.disabled = !socket || socket.readyState !== WebSocket.OPEN || Boolean(cameraRequestId);
+    button.addEventListener('click', () => selectCamera(cameraIndex));
+    container.append(button);
+  }
+}
+
 function updateControls() {
   const connected = socket?.readyState === WebSocket.OPEN;
-  $('#camera-toggle').disabled = !connected || Boolean(cameraRequestId);
+  $('#camera-refresh').disabled = !connected || Boolean(cameraListRequestId) || Boolean(cameraRequestId);
+  $('#camera-toggle').disabled = !connected || Boolean(cameraRequestId) || (!cameraActive && selectedCameraIndex < 0);
   $('#execute-button').disabled = !connected || !currentSolution || Boolean(activeActionId) || previewMode;
   $('#cancel-button').disabled = !connected || !activeActionId;
   $('#preview-toggle').disabled = !currentSolution || Boolean(activeActionId);
   $('#copy-facelets').disabled = !currentSolution;
+  renderCameraChoices();
   updateModeControl();
 }
 
@@ -937,6 +1106,7 @@ $('#connection-form').addEventListener('submit', (event) => {
 $('#execute-button').addEventListener('click', startAction);
 $('#cancel-button').addEventListener('click', cancelAction);
 $('#camera-toggle').addEventListener('click', toggleCamera);
+$('#camera-refresh').addEventListener('click', requestCameraList);
 $('#preview-toggle').addEventListener('change', (event) => setPreviewMode(event.target.checked));
 $('#execution-mode-toggle').addEventListener('change', (event) => setExecutionMode(event.target.checked));
 $('#clear-events').addEventListener('click', () => {
@@ -953,6 +1123,7 @@ $('#copy-facelets').addEventListener('click', async () => {
 const savedUrl = localStorage.getItem('middleware-bridge-ws-url');
 if (savedUrl) $('#ws-url').value = savedUrl;
 setConnection('offline', '연결 끊김', 'rosbridge WebSocket 연결 대기 중');
+renderCameraChoices();
 setExecutionState('idle', '실행 대기', '액션 서버가 준비되면 풀이를 dry-run할 수 있습니다.');
 updateSignals();
 requestAnimationFrame(drawFrame);

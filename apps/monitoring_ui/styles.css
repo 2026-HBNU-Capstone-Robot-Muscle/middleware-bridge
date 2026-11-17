@@ -89,6 +89,14 @@ input:focus { border-color: #537f70; box-shadow: 0 0 0 3px #72dfad15; }
 .camera-toolbar strong, .camera-toolbar small { display: block; }
 .camera-toolbar strong { color: #cbd7e2; font-size: 9px; }
 .camera-toolbar small { margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.4; }
+.camera-toolbar-actions { display: flex; gap: 7px; }
+.camera-choices { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.camera-choice { min-width: 90px; border: 1px solid #334252; border-radius: 7px; padding: 7px 10px; background: #151f2a; color: #aab8c6; cursor: pointer; font-size: 9px; }
+.camera-choice:hover:not(:disabled) { border-color: #587464; color: #d7e7dd; }
+.camera-choice.is-selected { border-color: #4a795f; background: #192c22; color: #a8e4bf; }
+.camera-choice.is-active { border-color: #9a7440; background: #302819; color: #f0cd88; }
+.camera-choice:disabled { cursor: not-allowed; opacity: .45; }
+.camera-empty { color: var(--muted); font-size: 8px; }
 .button-camera { border-color: #365847; background: #1d392d; color: #a4efc4; }
 .button-camera.is-active { border-color: #704146; background: #2b1c21; color: #ff9b9f; }
 .compact-heading { min-height: 28px; }
@@ -190,6 +198,7 @@ input:focus { border-color: #537f70; box-shadow: 0 0 0 3px #72dfad15; }
   .connection-strip { flex-wrap: wrap; gap: 10px; }.connection-title { flex: 1; }.connection-form { order: 3; flex: 1 1 100%; max-width: none; }.connection-meta { min-width: 50px; font-size: 7px; }
   .signal-strip { grid-template-columns: repeat(2, 1fr); gap: 7px; }.signal-card { min-height: 68px; padding: 9px; }.signal-card > strong { font-size: 16px; }.signal-heading, .topic-signal .signal-heading { font-size: 8px; }
   .side-column { grid-template-columns: 1fr; }.visual-panel { padding: 13px; }.canvas-wrap { height: 86vw; max-height: 390px; min-height: 275px; }.toggle-copy strong { font-size: 8px; }
+  .camera-toolbar { flex-wrap: wrap; }.camera-toolbar-actions { width: 100%; }.camera-toolbar-actions .button { flex: 1; }
   .events-panel { padding: 12px 10px 5px; }.event-table th:first-child { width: 65px; }.event-table th:nth-child(2) { width: 70px; }.event-table th, .event-table td { padding-right: 4px; padding-left: 4px; font-size: 7px; }
   .app-footer { align-items: flex-start; flex-direction: column; gap: 4px; }
 }

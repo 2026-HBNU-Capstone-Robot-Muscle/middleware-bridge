@@ -1,0 +1,6 @@
+---
+int32[] camera_indices
+bool active
+int32 active_camera_index
+int32 preferred_camera_index
+string message

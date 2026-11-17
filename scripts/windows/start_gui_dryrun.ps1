@@ -255,7 +255,7 @@ try {
         -FilePath $pixi `
         -ArgumentList $cameraManagerArguments `
         -WorkingDirectory $repositoryRoot
-    Wait-ForLogText -Entry $cameraManager -ExpectedText 'Camera manager ready: /cube/set_camera_enabled'
+    Wait-ForLogText -Entry $cameraManager -ExpectedText 'Camera manager ready: /cube/list_cameras and /cube/set_camera_enabled.'
     Write-Stage '카메라 관리 서비스 준비 완료 (GUI 버튼에서 시작 가능)'
 
     $tauri = Start-ManagedProcess `
