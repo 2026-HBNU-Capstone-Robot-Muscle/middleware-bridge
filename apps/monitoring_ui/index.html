@@ -19,7 +19,14 @@
           </div>
         </div>
         <div class="topbar-status">
-          <span id="dry-run-badge" class="mode-badge"><i></i> DRY-RUN ONLY</span>
+          <div class="mode-control">
+            <div class="mode-copy"><strong id="execution-mode-label">DRY-RUN</strong><small id="hardware-readiness">실물 준비 신호 대기 중</small></div>
+            <label class="toggle-control mode-toggle" for="execution-mode-toggle" title="실물 모드 전환은 모든 하드웨어와 안전 준비 신호가 확인된 경우에만 가능합니다.">
+              <span class="visually-hidden">실행 모드 전환</span>
+              <input id="execution-mode-toggle" type="checkbox" disabled aria-label="실행 모드: 기본 dry-run, 실물 준비 신호가 있어야 실물 모드로 전환 가능" />
+              <span class="toggle-track" aria-hidden="true"><span></span></span>
+            </label>
+          </div>
           <span id="connection-state" class="connection-state" data-state="offline"><i></i><span>연결 끊김</span></span>
         </div>
       </header>
@@ -68,8 +75,12 @@
           </div>
           <div class="camera-toolbar">
             <div><strong>카메라 인식</strong><small id="camera-state">ROS 연결 후 카메라를 시작할 수 있습니다.</small></div>
-            <button id="camera-toggle" class="button button-camera" type="button" disabled>카메라 시작</button>
+            <div class="camera-toolbar-actions">
+              <button id="camera-refresh" class="button button-secondary" type="button" disabled>카메라 검색</button>
+              <button id="camera-toggle" class="button button-camera" type="button" disabled>선택 카메라 촬영</button>
+            </div>
           </div>
+          <div id="camera-choices" class="camera-choices" aria-label="감지된 카메라"></div>
           <div class="canvas-wrap" id="canvas-wrap">
             <canvas id="cube-canvas" aria-label="풀이 수열을 보여주는 3D 큐브"></canvas>
             <div id="canvas-empty" class="canvas-empty"><span class="empty-cube">▦</span><strong>풀이 수신 대기</strong><small>ROS2에서 /cube/solution을 받으면 큐브를 표시합니다.</small></div>
@@ -95,10 +106,10 @@
             <div class="moves-heading"><span>풀이 수열</span><span id="move-count" class="move-count">0 moves</span></div>
             <div id="move-list" class="move-list"><span class="placeholder">풀이가 수신되면 이동이 여기에 표시됩니다.</span></div>
             <div class="solution-actions">
-              <button id="execute-button" class="button button-primary" type="button" disabled><span>▶</span> DRY-RUN 실행</button>
+              <button id="execute-button" class="button button-primary" type="button" disabled><span>▶</span> <span id="execute-button-label">DRY-RUN 실행</span></button>
               <button id="cancel-button" class="button button-danger" type="button" disabled>실행 취소</button>
             </div>
-            <p id="dry-run-note" class="dry-run-note"><span>i</span> 이 화면은 dry_run=true만 전송합니다. 실물 모드 전환은 잠겨 있습니다.</p>
+            <p id="dry-run-note" class="dry-run-note"><span>i</span> 기본 모드는 dry-run입니다. 실물 모드는 ROS의 하드웨어 준비 신호가 유효할 때만 선택할 수 있습니다.</p>
           </section>
 
           <section class="execution-panel panel" aria-labelledby="execution-title">

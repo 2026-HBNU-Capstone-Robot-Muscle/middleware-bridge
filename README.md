@@ -87,7 +87,8 @@ ROS 2 도구가 인식되지 않으면 해당 PowerShell에서 overlay가 적용
 |---|---|
 | `/cube/solve` — `system_interfaces/srv/SolveCube` | URFDLB facelet 입력의 유효성을 검사하고 풀이 수열을 반환 |
 | `/cube/solution` — `system_interfaces/msg/CubeSolution` | 인식된 큐브 상태와 풀이 수열 전달 |
-| `/cube/set_camera_enabled` — `system_interfaces/srv/SetCameraEnabled` | GUI에서 카메라 캡처 노드 시작·중지 |
+| `/cube/list_cameras` — `system_interfaces/srv/ListCameras` | 인덱스 0~2에서 사용 가능한 카메라를 검색 |
+| `/cube/set_camera_enabled` — `system_interfaces/srv/SetCameraEnabled` | GUI에서 선택한 카메라 인덱스의 캡처 노드 시작·중지 |
 | `/cube/camera_active` — `std_msgs/msg/Bool` | 카메라 캡처 활성 상태 전달 |
 | `/cube/execute_solution` — `system_interfaces/action/ExecuteCubeSolution` | 저장된 풀이를 두 손 primitive workflow로 dry-run 실행 |
 | `/cube/execution_status` — `system_interfaces/msg/CubeExecutionStatus` | 실행 단계·완료·실패·취소 상태 발행 |
@@ -123,4 +124,4 @@ python scripts\ros2_dryrun_check.py --mode cancel
 
 실기 코드에서 찾은 포트·모터·제어 설정은 [하드웨어 설정표](docs/hardware-setting.md)에, 실물 전 남은 입력·보정·안전 항목은 [미완료 목록](docs/incomplete.md)에 기록했습니다.
 
-Tauri 큐브 조작 GUI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 풀이와 실행 피드백을 표시하고 dry-run action을 요청합니다. 실행 방법은 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.
+Tauri 큐브 조작 GUI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 풀이와 실행 피드백을 표시합니다. 실행 모드는 dry-run이 기본이며 `/cube/real_mode_ready` 준비 신호가 없으면 실물 모드 전환이 잠깁니다. 현재 middleware는 실물 구동 adapter를 제공하지 않습니다. 실행 방법은 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.
