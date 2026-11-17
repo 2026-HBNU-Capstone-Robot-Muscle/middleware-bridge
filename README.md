@@ -4,30 +4,30 @@ Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐
 
 ## 실행 방법
 
+#### 실행환경 준비
+> `install.bat`을 실행하여 실행에 필요한 패키지를 설치합니다
+> 설치 목록
+> - Pixi
+> - Rust/Tauri CLI
+> - Visual Studio C++ Build Tools
+> - WebViews2 Runtime
+
+```powershell
+./install.bat
+```
+
 #### 프로그램 실행
 > 기존 4개의 창을 활성화해야 한 것을 하나의 실행파일로 축소
 
-- windows
 ```powershell
-./scripts/windows/start_gui_dryrun.bat
-```
-
-- MacOS
-```
-.\scripts\windows\start_gui_dryrun.ps1
+./start.bat
 ```
 
 #### 프로그램 정지
 > 프로그램을 정지하지 않을 경우 컴퓨터 전원을 껐다 켜지 않는 이상 위의 스크립트가 작동되지 않음
 
-- windows
 ```powershell
-./scripts/windows/stop_gui_dryrun.bat
-```
-
-- MacOS
-```
-.\scripts\windows\stop_gui_dryrun.ps1
+./stop.bat
 ```
 
 ## 처리 흐름
@@ -66,16 +66,15 @@ Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐
 
 이 저장소는 `pixi.toml`에서 Windows `win-64`와 ROS 2 Humble 환경을 관리합니다. 설치·환경 진단 절차는 [Windows ROS 2 설치 안내](docs/ros2_install_guideline.md)를 참고하세요.
 
+새 Windows PC에서는 저장소를 내려받은 뒤 루트의 `install.bat`을 실행하면 Pixi 환경, Rust/Tauri 도구, 필요한 Windows 빌드 구성 요소 설치를 확인하고 ROS 패키지 빌드와 정적 GUI 준비까지 진행합니다. 네트워크 연결이 필요하고 Visual Studio C++ Build Tools 설치 과정에서 관리자 승인 창이 표시될 수 있습니다. 설치가 끝나면 `start.bat`으로 GUI를 실행합니다.
+
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
-pixi install
-pixi run build-windows
+.\install.bat
 ```
 
 빌드 후 ROS 명령을 사용하는 각 PowerShell 창에서 환경을 준비합니다.
 
 ```powershell
-cd C:\Users\jeonj\Desktop\middleware\middleware-bridge
 pixi shell
 . .\.colcon-win\install\local_setup.ps1
 ```

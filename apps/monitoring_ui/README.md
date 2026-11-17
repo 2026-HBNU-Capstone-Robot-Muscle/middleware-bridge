@@ -30,7 +30,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\monitoring_ui\scripts
 
 ### 2. 원클릭 dry-run 실행
 
-파일 탐색기에서 `scripts\windows\start_gui_dryrun.bat`을 더블클릭합니다. 바로가기는 한 개의 PowerShell 창에서 다음 준비를 순서대로 처리합니다.
+저장소 루트의 `start.bat`을 더블클릭합니다. 실행기는 한 개의 PowerShell 창에서 다음 준비를 순서대로 처리합니다.
 
 1. 정적 GUI 파일 생성
 2. `.colcon-win/install/local_setup.ps1` ROS overlay를 적용해 rosbridge를 시작하고 `127.0.0.1:9090` 준비 확인
@@ -39,14 +39,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\monitoring_ui\scripts
 5. 카메라 관리 노드를 시작하고 GUI 버튼 요청을 기다림
 6. Tauri 데스크톱 GUI 실행
 
-GUI가 열리면 rosbridge에 자동 연결됩니다. 실행 서버는 요청을 검증하고 응답만 하며 모터 명령은 보내지 않습니다. 실행기 로그는 저장소의 `logs\gui-dryrun`에 기록됩니다. 종료할 때는 `scripts\windows\stop_gui_dryrun.bat`을 더블클릭하세요. 실행기가 시작한 프로세스 트리만 정리합니다.
+GUI가 열리면 rosbridge에 자동 연결됩니다. 실행 서버는 요청을 검증하고 응답만 하며 모터 명령은 보내지 않습니다. 실행기 로그는 저장소의 `logs\gui-dryrun`에 기록됩니다. 종료할 때는 저장소 루트의 `stop.bat`을 더블클릭하세요. 실행기가 시작한 프로세스 트리만 정리합니다.
 
 한 번 실행하려면 perception을 포함한 ROS 패키지가 `.colcon-win\install`에 빌드되어 있어야 합니다. Pixi, Rust/Cargo, Tauri CLI가 준비되어 있고 `9090` 포트가 비어 있어야 합니다. ROS 패키지를 새로 빌드해야 하는 경우 저장소 루트에서 먼저 `pixi run build-windows`를 실행하세요. Cargo가 사용자 PATH에 없더라도 실행기는 `%USERPROFILE%\.cargo\bin\cargo.exe`를 찾아 사용합니다.
 
 원클릭 실행에는 perception의 solver, YOLO detector, 카메라 관리 노드가 포함됩니다. GUI의 `카메라 시작` 버튼을 누르면 캡처 노드가 별도 카메라 창으로 열리고, `Space`로 면을 촬영해 풀이 JSON을 저장하고 `/cube/solution`을 발행합니다. `카메라 중지` 버튼은 캡처 노드를 종료합니다. 기본 backend `dshow`가 카메라를 열지 못하면 `msmf`, `any` 순서로 자동 재시도합니다. 카메라 장치 번호나 시작 backend가 다른 경우 다음처럼 실행 매개변수를 바꿀 수 있습니다.
 
 ```powershell
-.\scripts\windows\start_gui_dryrun.bat -CameraIndex 1 -CameraBackend msmf
+.\start.bat -CameraIndex 1 -CameraBackend msmf
 ```
 
 수동으로 실행해야 하는 경우에는 저장소 루트에서 rosbridge, solver, detector, 카메라 및 세 dry-run 서버를 각각 시작한 뒤 `apps\monitoring_ui\src-tauri`에서 `cargo tauri dev`를 실행하면 됩니다. GUI는 기본 `ws://127.0.0.1:9090`에 자동 연결합니다.

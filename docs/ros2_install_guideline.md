@@ -20,6 +20,21 @@ Pixi는 PowerShell에서 설치할 수 있습니다.
 winget install prefix-dev.pixi
 ```
 
+### 새 Windows PC에서 자동 설치
+
+저장소를 복제하거나 압축 해제한 뒤 루트에서 `install.bat`을 실행하면 예상 추가 디스크 공간(약 15~25 GB)과 다운로드 용량(약 5~10 GB)을 안내하고 설치 여부를 묻습니다. 기존에 설치된 도구와 패키지 캐시에 따라 실제 사용량은 달라집니다. `Y`를 선택하면 아래 작업을 순서대로 진행하고, `N`을 선택하면 아무 설치 작업 없이 종료합니다.
+
+1. Pixi가 없으면 winget으로 설치
+2. Rustup/Cargo가 없으면 설치하고 `stable-msvc` toolchain 선택
+3. Visual Studio 2022 C++ Build Tools의 `Desktop development with C++` workload가 없으면 설치
+4. WebView2 Runtime이 없으면 Microsoft 공식 bootstrapper로 설치
+5. Tauri CLI가 없으면 Cargo로 설치
+6. `pixi install`, `pixi run build-windows`, 정적 Tauri frontend 생성 실행
+
+필요 조건은 64비트 Windows, winget(App Installer), 인터넷 연결입니다. C++ Build Tools는 용량이 큰 구성 요소이며 설치 관리자에서 관리자 승인을 요구할 수 있습니다. 조직 PC의 winget 정책이나 권한으로 설치가 차단되면 아래 사전 준비 항목을 수동 설치한 후 `install.bat`을 다시 실행하면 됩니다. 설치 후 GUI는 저장소 루트의 `start.bat`으로 실행합니다.
+
+자동 설치는 장치 드라이버, 카메라 권한, 실제 핸드 모터 연결을 구성하지 않습니다. 현재 `start.bat`은 실물 구동이 비활성화된 dry-run 실행기입니다.
+
 설치 후 새 PowerShell을 열고 저장소 루트에서 프로젝트 환경을 설치합니다.
 
 ```powershell
