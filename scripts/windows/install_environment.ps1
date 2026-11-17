@@ -7,7 +7,7 @@ function Write-Stage([string]$Message) {
 function Invoke-WingetInstall([string[]]$Arguments) {
     & winget @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "winget ?? ??? ?????? (exit code $LASTEXITCODE)."
+        throw "winget install command failed (exit code $LASTEXITCODE)."
     }
 }
 
