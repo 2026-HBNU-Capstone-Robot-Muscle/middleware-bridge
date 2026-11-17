@@ -2,6 +2,19 @@
 
 현재 ROS2 middleware는 Windows 환경에서 카메라로 큐브를 인식하고 풀이를 생성하며, ROS 액션으로 각 손의 작업 순서를 dry-run하는 단계까지 구현되어 있습니다. 다음은 실제 하드웨어 정보와 센서 입력을 확인해 연결하고, 안전 검증을 거쳐 실물 동작을 확인하는 작업입니다.
 
+### 2026-11-16 오른손 작업 재개 기준
+
+- 원래 PC의 실물 기록은 [right-hand-status.md](right-hand-status.md)와 [근거 JSON](evidence/right_hand_20261116.json)에 반영했다. 이미 확보한 기록을 먼저 재사용하고, 새 PC·배선·조립으로 달라진 항목을 확인한다.
+- 오른손 통신 기준은 **1Mbps**, 최신 관절 ID 대응을 사용한다. 기존 deploy의3Mbps·옛 SIM2ARR을 현재 실물 확정값으로 복사하지 않는다.
+- 하드웨어 구현은 `feature/hardware`에서 진행하고 `apps/monitoring_ui`는 수정하지 않는다.
+- 구현 순서는 설정 대조 → 단일 포트 소유 I/O·상태 발행 → 명령/완료/오류/취소 연결 → 오른손 지지 유지 계약 → 실물 검증이다. 경로 재생과 정책 추론 backend를 구분한다.
+
+### 2026-11-17 Custom Hand 실기 작업 현황
+
+- 좌수 저장소 [develop/chu 실기 문서](https://github.com/2026-HBNU-Capstone-Robot-Muscle/left-rl-with-mujoco/blob/develop/chu/docs/primitive_README.md)에 기존 PPO·설정과 단독 실행 방법을 정리했다. 사용자가 `primitive_cli.py`로 파지·회전·해제·초기 복귀를 실기 확인했다고 보고했다.
+- 손가락 ID1~4와 손목 ID10을 사용한다. 손목 기준은 2400틱이며 시계 방향은 틱 감소다. 90도 요청은 50도씩 두 구간으로 움직이고 중간에 재파지한다.
+- 현재 설정과 검증되지 않은 항목은 [hardware-setting.md](hardware-setting.md)와 [incomplete.md](incomplete.md)에 기록한다. CLI 실기 확인과 ROS 액션을 통한 실기 통합은 별개다. Custom Hand ROS 서버는 현재 dry-run 전용이다.
+
 ### 1. 실물과 연결 정보 확인
 
 각 장치를 연결하기 전에 다음 정보를 docs/hardware-setting.md에 기록하세요.
@@ -41,7 +54,7 @@ left-rl-with-mujoco/sim2real의 코드를 참고해 현재 실물에서 확인�
 
 ### 4. Custom Hand 손목 모터 확인
 
-참조 실기 코드에서 손목 제어가 확인되지 않았으므로 별도로 조사하고 검증해야 합니다.
+좌수 `develop/chu` 단독 실기 코드의 STS3215 ID10 제어와 사용자 확인 결과를 확보했다. 통합 PC에서 연결·완료·정지 동작을 확인하고 미들웨어와 연결해야 한다.
 
 - Feetech STS3215의 실제 COM 포트, 통신 속도, 프로토콜, 모터 ID
 - 손목 회전축의 방향, 영점, 안전한 회전 범위
@@ -99,4 +112,4 @@ left-rl-with-mujoco/sim2real의 코드를 참고해 현재 실물에서 확인�
 6. 저위험 단위 시험부터 큐브 풀이 전체 실행까지 단계적으로 검증됨
 7. 결과와 미완료 사항이 docs/hardware-setting.md, docs/incomplete.md에 기록됨
 
-현재 문서의 확인된 설정과 미완료 항목은 [hardware-setting.md](/C:/Users/jeonj/Desktop/middleware/middleware-bridge/docs/hardware-setting.md)와 [incomplete.md](/C:/Users/jeonj/Desktop/middleware/middleware-bridge/docs/incomplete.md)에 있습니다.
+현재 문서의 확인된 설정과 미완료 항목은 [hardware-setting.md](hardware-setting.md)와 [incomplete.md](incomplete.md)에 있습니다.
