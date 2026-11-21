@@ -73,7 +73,7 @@ function Add-UserToolPaths {
 try {
     $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
     if ($repoRoot -match '[^\x20-\x7E]' -or $repoRoot.Contains(' ')) {
-        throw '저장소 경로에 한글 등 비 ASCII 문자 또는 공백이 포함되어 있습니다. 저장소를 영문·숫자·하이픈만 사용하는 경로로 이동한 뒤 install.bat을 다시 실행하세요.'
+        throw 'The repository path contains non-ASCII characters or spaces. Move the repository to a path using only ASCII letters, numbers, and hyphens, then run install.bat again.'
     }
     Set-Location -LiteralPath $repoRoot
 
