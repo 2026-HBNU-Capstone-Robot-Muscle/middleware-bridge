@@ -1,8 +1,6 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-for /f "tokens=2 delims=:" %%a in ('chcp') do set "ORIGINAL_CODEPAGE=%%a"
-chcp 65001 >nul
 
 echo Estimated additional disk space: approximately 15-25 GB.
 echo Estimated downloads: approximately 5-10 GB; existing installed tools may reduce this.
@@ -24,5 +22,4 @@ exit /b %INSTALL_EXIT%
 
 :declined
 echo Installation cancelled. No setup commands were run.
-if defined ORIGINAL_CODEPAGE chcp %ORIGINAL_CODEPAGE% >nul
 exit /b 0
