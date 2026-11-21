@@ -79,7 +79,7 @@ pixi shell
 . .\.colcon-win\install\local_setup.ps1
 ```
 
-저장소 경로에 한글이 포함된 Windows PC에서는 ROS CLI를 `ros2 ...` 대신 `python -X utf8 scripts/windows/run_ros2.py ...` 형식으로 실행합니다. 설치 안내에 예시와 이유를 기록했습니다.
+저장소 경로에는 한글이나 공백을 포함하지 마세요. 노트북에서는 영문·숫자·하이픈만 사용하는 경로에 저장소를 새로 복제한 뒤 설치해야 합니다.
 
 ROS 2 도구가 인식되지 않으면 해당 PowerShell에서 overlay가 적용됐는지 확인합니다. 카메라 검증 명령과 키 입력은 [인식 README](src/perception/README.md)에 있습니다.
 

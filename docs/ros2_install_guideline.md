@@ -31,7 +31,7 @@ winget install prefix-dev.pixi
 5. Tauri CLI가 없으면 Cargo로 설치
 6. `pixi install`, `pixi run build-windows`, 정적 Tauri frontend 생성 실행
 
-빌드와 저장소 관리 노드는 Windows 콘솔 실행 파일(`colcon.exe`, `ros2.exe`)의 실행 경로 및 Windows 기본 코드 페이지와 UTF-8 경로 간 인코딩 문제를 피하도록 Python 래퍼와 UTF-8 모드를 사용합니다. `install.bat`은 빌드 중 콘솔 코드 페이지를 UTF-8로 바꾸고 종료할 때 원래 코드 페이지로 복원합니다. `.colcon-win/`은 첫 빌드 때 자동 생성되므로 Git에 추가할 필요가 없습니다. 한글 경로에서 수동 ROS 2 명령을 실행할 때는 `ros2 <명령>` 대신 `python -X utf8 scripts/windows/run_ros2.py <명령>` 형식을 사용합니다. 예를 들어 `ros2 topic list`는 `python -X utf8 scripts/windows/run_ros2.py topic list`로 실행합니다.
+저장소 경로에는 한글 등 비 ASCII 문자와 공백을 사용하지 마세요. Windows의 ROS 2 빌드 도구가 이런 경로를 안정적으로 처리하지 못할 수 있습니다. 노트북에서는 영문·숫자·하이픈만 사용하는 경로에 저장소를 새로 복제한 뒤 `install.bat`을 실행하세요. 설치기는 잘못된 경로를 감지하면 빌드 전에 중단합니다. 이미 설치한 작업 폴더를 옮기는 경우 `.pixi/`와 `.colcon-win/`에는 이전 위치가 기록될 수 있으므로 새 위치에서 다시 생성해야 합니다. 이 디렉토리들은 Git에 포함하지 않습니다.
 
 필요 조건은 64비트 Windows, winget(App Installer), 인터넷 연결입니다. C++ Build Tools는 용량이 큰 구성 요소이며 설치 관리자에서 관리자 승인을 요구할 수 있습니다. 조직 PC의 winget 정책이나 권한으로 설치가 차단되면 아래 사전 준비 항목을 수동 설치한 후 `install.bat`을 다시 실행하면 됩니다. 설치 후 GUI는 저장소 루트의 `start.bat`으로 실행합니다.
 
@@ -53,13 +53,13 @@ PowerShell 창 두 개를 열고 저장소 루트에서 실행합니다.
 창 A:
 
 ```powershell
-pixi run python -X utf8 scripts/windows/run_ros2.py run demo_nodes_cpp talker
+pixi run ros2 run demo_nodes_cpp talker
 ```
 
 창 B:
 
 ```powershell
-pixi run python -X utf8 scripts/windows/run_ros2.py run demo_nodes_py listener
+pixi run ros2 run demo_nodes_py listener
 ```
 
 listener에 `/chatter` 메시지가 표시되면 ROS 2 노드 간 통신이 됩니다.
@@ -95,7 +95,7 @@ pixi run rosbridge
 rosbridge를 실행한 상태에서 별도 PowerShell 창에서 talker를 실행합니다.
 
 ```powershell
-pixi run python -X utf8 scripts/windows/run_ros2.py run demo_nodes_py talker
+pixi run ros2 run demo_nodes_py talker
 ```
 
 WebSocket 클라이언트가 `ws://127.0.0.1:9090`에 연결하고 다음 JSON을 보내면 `/chatter` 구독을 시작합니다.
@@ -119,11 +119,11 @@ pixi run rosbridge
 창 B — 토픽 발행 노드와 서비스 서버:
 
 ```powershell
-pixi run python -X utf8 scripts/windows/run_ros2.py run demo_nodes_py talker
+pixi run ros2 run demo_nodes_py talker
 ```
 
 ```powershell
-pixi run python -X utf8 scripts/windows/run_ros2.py run demo_nodes_cpp add_two_ints_server
+pixi run ros2 run demo_nodes_cpp add_two_ints_server
 ```
 
 창 C — Tauri 정적 UI 빌드 및 실행:
