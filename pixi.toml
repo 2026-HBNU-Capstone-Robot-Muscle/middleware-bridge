@@ -15,6 +15,6 @@ ultralytics = "==8.4.174"
 torch = "==2.15.0"
 
 [tasks]
-list-packages = "python scripts/windows/run_colcon.py list --base-paths src"
-build-windows = "python scripts/windows/run_colcon.py --log-base .colcon-win/log build --executor sequential --merge-install --base-paths src --build-base .colcon-win/build --install-base .colcon-win/install"
+list-packages = "python -X utf8 scripts/windows/run_colcon.py list --base-paths src"
+build-windows = "python -X utf8 scripts/windows/run_colcon.py --log-base .colcon-win/log build --executor sequential --merge-install --base-paths src --build-base .colcon-win/build --install-base .colcon-win/install"
 rosbridge = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/run_rosbridge.ps1"
