@@ -153,10 +153,22 @@ try {
 
     Write-Stage 'Build ROS 2 packages'
     & $pixi run build-windows
-    if ($LASTEXITCODE -ne 0) { throw 'ROS 2 package build failed.' }
+    if ($LASTEXITCODE -ne 0) {
+        $latestBuildLog = Get-ChildItem -LiteralPath '.colcon-win\log' -Directory -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        $interfaceStderr = if ($latestBuildLog) {
+            Join-Path (Join-Path '.colcon-win\log' $latestBuildLog.Name) 'system_interfaces\stderr.log'
+        }
+        if ($interfaceStderr -and (Test-Path -LiteralPath $interfaceStderr)) {
+            Write-Stage 'system_interfaces 빌드 stderr 로그 (마지막 80줄)'
+            Get-Content -LiteralPath $interfaceStderr -Encoding UTF8 -Tail 80
+        }
+        throw 'ROS 2 package build failed. See the system_interfaces stderr shown above and .colcon-win\log for the full build log.'
+    }
 
     Write-Stage 'Build the static Tauri frontend'
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'apps\monitoring_ui\scripts\build.ps1')
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File '.\apps\monitoring_ui\scripts\build.ps1'
     if ($LASTEXITCODE -ne 0) { throw 'Static Tauri frontend generation failed.' }
 
     Write-Host "`nEnvironment setup and ROS package build completed." -ForegroundColor Green
