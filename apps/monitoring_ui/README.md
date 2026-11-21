@@ -70,7 +70,8 @@ $solutionFile = Get-ChildItem .\results\cube_solutions\cube_solution_*.json | So
 $solution = Get-Content $solutionFile.FullName -Raw | ConvertFrom-Json
 $moves = ($solution.moves | ForEach-Object { '"' + $_ + '"' }) -join ', '
 $yaml = "{scan_id: $($solution.scan_id), facelets: '$($solution.facelets)', moves: [$moves]}"
-ros2 topic pub --qos-durability transient_local --qos-reliability reliable --once /cube/solution system_interfaces/msg/CubeSolution $yaml
+. .\.colcon-win\install\local_setup.ps1
+python scripts/windows/run_ros2.py topic pub --qos-durability transient_local --qos-reliability reliable --once /cube/solution system_interfaces/msg/CubeSolution $yaml
 ```
 
 이 명령은 GUI 표시와 dry-run workflow 확인용입니다. 저장 JSON의 풀이가 현재 실제 큐브 상태와 일치하는지는 별도 확인 대상입니다.
