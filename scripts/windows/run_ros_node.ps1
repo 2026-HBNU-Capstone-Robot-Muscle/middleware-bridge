@@ -38,5 +38,5 @@ if ($CameraIndex -ge 0) {
 }
 
 Write-Output "ROS 노드 시작: $Package / $Executable"
-& python $ros2Runner run $Package $Executable @rosArgs
+& python -X utf8 $ros2Runner run $Package $Executable @rosArgs
 exit $LASTEXITCODE
