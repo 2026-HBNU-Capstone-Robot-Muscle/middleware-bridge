@@ -1,6 +1,6 @@
 # middleware-bridge
 
-Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐브 면을 수집해 URFDLB 상태를 만들고 Kociemba 풀이를 생성한 뒤, ROS 2 action으로 LEAP Hand와 Custom Hand의 동작 순서를 실행하는 구조입니다. 현재 인식·풀이 및 hand 동작 orchestration은 연결되어 있으며, 조작 경로는 dry-run입니다. 실제 pose·관절 입력과 모터 구동은 아직 연결되지 않았습니다.
+Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐브 면을 수집해 URFDLB 상태를 만들고 Kociemba 풀이를 생성한 뒤, ROS 2 action으로 LEAP Hand와 Custom Hand의 동작 순서를 실행하는 구조입니다. GUI의 두 손 큐브 풀이 경로는 dry-run입니다. 좌수 Custom Hand는 별도로 실기 모드를 켜면 ROS 2 action으로 파지·회전·해제를 실행할 수 있습니다.
 
 ## 실행 방법
 
@@ -53,7 +53,7 @@ Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐
 | `src/planning/cube_solver` | `/cube/solve` Kociemba 풀이 서비스 |
 | `src/control/cube_execution` | 풀이 실행 action, workflow 전개, 방향 순열 trace, calibration gate |
 | `src/control/leap_hand_control` | LEAP 정책 추론기와 hand primitive dry-run action server |
-| `src/control/custom_hand_control` | Custom Hand 정책 추론기와 hand primitive dry-run action server |
+| `src/control/custom_hand_control` | Custom Hand shadow 정책 추론기와 dry-run·좌수 실기 겸용 primitive action server |
 | `src/policy/rl_policy` | 정책 관련 ROS 패키지 |
 | `src/system_bringup` | 정책 입력 bridge 및 통합 실행 구성 |
 | `src/system_interfaces` | 프로젝트 ROS 메시지·서비스·action 정의 |
@@ -95,7 +95,7 @@ ROS 2 도구가 인식되지 않으면 해당 PowerShell에서 overlay가 적용
 | `/cube/execute_solution` — `system_interfaces/action/ExecuteCubeSolution` | 저장된 풀이를 두 손 primitive workflow로 dry-run 실행 |
 | `/cube/execution_status` — `system_interfaces/msg/CubeExecutionStatus` | 실행 단계·완료·실패·취소 상태 발행 |
 | `/leap_hand/execute_primitive` | LEAP 방향 정렬·지지 primitive action |
-| `/custom_hand/execute_primitive` | Custom 파지·레이어 회전·해제 primitive action |
+| `/custom_hand/execute_primitive` — `system_interfaces/action/ExecuteHandPrimitive` | Custom 파지·레이어 회전·해제 primitive action |
 | `/policy/infer` — `system_interfaces/action/InferHandPolicy` | 고정된 사전학습 모델의 shadow 추론 요청 |
 
 ROS 인터페이스와 workflow 설명은 [제어 README](src/control/README.md), solver 설명은 [planning README](src/planning/README.md)에 있습니다.
@@ -122,8 +122,40 @@ python scripts\ros2_dryrun_check.py --mode cancel
 
 **확인된 부분:** 카메라 facelet 수집·검증, Kociemba 풀이와 JSON 저장, ROS 2 토픽·서비스·action 연결, 저장 풀이 dry-run, 고정 모델 shadow 추론 및 방향 순열 계획 trace, 저장 JSON 구조·물리 상태 사전 검증.
 
-**미완료:** 실제 큐브 pose와 좌표계 provider, LEAP·Custom 정책의 실측 입력 연결, 실제 모터 command adapter, 동작 완료 피드백, 안전 정지·복구와 하드웨어 시험. 이 항목들은 측정 pose/프레임, 실제 입력 provider, 장치별 제어 및 안전 검증이 준비돼야 합니다. 현재는 `dry_run=false` 실제 구동을 지원하지 않습니다.
+**미완료:** LEAP Hand 실기 제어, 실제 큐브 pose·좌표계 입력, 두 손 협동 실행의 완료 판정과 오류 복구. 좌수 단독 실기는 아래 방법으로 확인할 수 있습니다.
 
 실기 코드에서 찾은 포트·모터·제어 설정은 [하드웨어 설정표](docs/hardware-setting.md)에, 실물 전 남은 입력·보정·안전 항목은 [미완료 목록](docs/incomplete.md)에 기록했습니다.
 
-Tauri 큐브 조작 GUI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 풀이와 실행 피드백을 표시합니다. 실행 모드는 dry-run이 기본이며 `/cube/real_mode_ready` 준비 신호가 없으면 실물 모드 전환이 잠깁니다. 현재 middleware는 실물 구동 adapter를 제공하지 않습니다. 실행 방법은 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.
+Tauri 큐브 조작 GUI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 풀이와 실행 피드백을 표시합니다. 실행 모드는 dry-run이 기본이며 `/cube/real_mode_ready` 준비 신호가 없으면 실물 모드 전환이 잠깁니다. GUI 실행 방법은 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.
+
+
+## 좌수 Custom Hand 단독 실기 시험
+
+`install.bat`으로 빌드한 뒤, 저장소 루트에서 서버와 요청용 PowerShell 창을 각각 준비합니다. 두 창에서 `pixi shell`을 먼저 실행한 다음 overlay를 적용합니다. GUI가 실행 중이면 `stop.bat`으로 종료하고, 좌수 CLI가 열려 있으면 종료해 COM8과 action을 한 서버만 사용하게 합니다.
+
+```powershell
+pixi shell
+. .\.colcon-win\install\local_setup.ps1
+```
+
+서버 창에서 실기 제어를 켭니다.
+
+```powershell
+ros2 run custom_hand_control custom_hand_primitive_server --ros-args -p hardware_enabled:=true -p allow_provisional:=true
+```
+
+서버는 패키지에 설치된 `config/config.provisional.json`과 `config/primitive_calibration.local.json`을 읽습니다. 기본 연결은 COM8, 1 Mbps, 손가락 ID 1~4, 손목 ID 10입니다. 다른 설정 파일은 `hardware_config`와 `wrist_calibration`에 절대 경로를 지정합니다. `allow_provisional:=true`는 `verified=false`로 기록된 시험 보정값을 명시적으로 허용합니다.
+
+요청 창에서 아래 명령을 한 줄씩 실행합니다. 파지와 회전의 결과가 각각 `SUCCEEDED`이고 `success: true`인 것을 확인한 뒤 다음 명령을 보냅니다. 각 시험은 새 실행 ID를 만들고, 같은 시험의 세 요청은 ID를 공유합니다.
+
+```powershell
+$execution = 'left-test-' + [guid]::NewGuid().ToString('N')
+$goal = "scan_id: bench, execution_id: $execution, move_index: 1, cube_move: U, target_face: U, face_direction_order: URFDLB, target_face_direction_index: 0, dry_run: false"
+ros2 action send_goal /custom_hand/execute_primitive system_interfaces/action/ExecuteHandPrimitive "{$goal, step_index: 1, primitive_id: grasp_upper_layer, clockwise_quarter_turns: 0}" --feedback
+ros2 action send_goal /custom_hand/execute_primitive system_interfaces/action/ExecuteHandPrimitive "{$goal, step_index: 2, primitive_id: rotate_upper_layer, clockwise_quarter_turns: 1}" --feedback
+ros2 action send_goal /custom_hand/execute_primitive system_interfaces/action/ExecuteHandPrimitive "{$goal, step_index: 3, primitive_id: release_upper_layer, clockwise_quarter_turns: 0}" --feedback
+```
+
+회전 요청 값은 시계 방향 `1`, 반시계 방향 `-1`, 반 바퀴 `2`입니다. 반시계 방향이나 반 바퀴를 시험할 때는 `cube_move`도 각각 `"U'"` 또는 `U2`로 맞춥니다. 파지 결과를 반환한 뒤에도 Worker가 PPO 제어를 유지합니다. 파지와 회전의 성공 판정은 모터 피드백을 기준으로 하므로 큐브를 실제로 잡았는지와 회전이 완료됐는지는 실물을 보고 확인합니다.
+
+실기에는 `finger_robot_ppo_hardware.zip`을 사용하며 설정의 SHA-256과 대조합니다. 기존 `finger_robot_ppo_best.zip`은 shadow 추론에 사용합니다. 실기 서버를 종료할 때는 서버 창에서 `Ctrl+C`를 누릅니다. 자동 수집 로그는 `ROS_LOG_DIR/custom_hand_control` 또는 기본 `~/.ros/log/custom_hand_control`에서 확인합니다.
