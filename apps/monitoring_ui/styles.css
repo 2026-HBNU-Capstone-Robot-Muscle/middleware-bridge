@@ -219,6 +219,23 @@ input:focus { border-color: #6b9a93; box-shadow: 0 0 0 3px rgb(40 109 102 / 12%)
 body, body * { font-family: "Freesentation", "Malgun Gothic", sans-serif !important; }
 h1 { font-family: "Bithumb Gothic", "Malgun Gothic", sans-serif !important; }
 
+/* 구조 패널은 직각으로 정리하고, 토픽 카드는 키 컬러로 식별합니다. */
+.panel, .connection-state, .small-status, .mode-control, .button, input,
+.brand-mark, .icon-orbit, .camera-toolbar, .camera-choice, .toggle-track,
+.facelets-value, .move-list, .move-chip, .workflow-stage, .scan-meta,
+.canvas-wrap, .cube-legend i {
+  border-radius: 0 !important;
+}
+.signal-card, .signal-card.topic-signal, .events-panel {
+  border-top: 1px solid var(--line);
+}
+.topic-signal .signal-heading,
+.topic-signal > strong,
+.topic-signal .topic-led {
+  color: var(--teal);
+}
+.topic-signal .topic-led { background: var(--teal); }
+
 @media (max-width: 1050px) {
   .app-shell { width: min(calc(100% - 32px), 900px); }
   .main-grid { grid-template-columns: minmax(0, 1fr); }
@@ -332,3 +349,8 @@ h2 { font-weight: 740; letter-spacing: -.035em; }
   .app-footer { min-height: 14px; margin: 0; }
   h1 { font-size: 30px; }
 }
+
+/* 마지막 시각 규칙: 사각 패널 위의 색 띠를 없애고 토픽 신호는 키 컬러로 표시합니다. */
+.signal-card, .signal-card.topic-signal, .events-panel { border-top: 1px solid var(--line); }
+.topic-signal .signal-heading, .topic-signal > strong, .topic-signal .topic-led { color: var(--teal); }
+.topic-signal .topic-led { background: var(--teal); }
