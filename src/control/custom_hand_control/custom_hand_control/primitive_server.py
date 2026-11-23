@@ -1,11 +1,18 @@
-"""Dry-run-only Custom Hand action endpoint; hardware commands are disabled."""
+"""Custom hand action endpoint. Hardware requires explicit startup configuration."""
+
+import math
+from pathlib import Path
+import re
 
 import rclpy
-import re
-import math
+from ament_index_python.packages import get_package_share_directory
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
 from system_interfaces.action import ExecuteHandPrimitive
+
+from .session_logging import get_session
 
 
 class CustomHandPrimitiveServer(Node):
@@ -13,32 +20,110 @@ class CustomHandPrimitiveServer(Node):
 
     def __init__(self):
         super().__init__('custom_hand_primitive_server')
+        self.session=get_session()
+        self.worker = None
+        self.declare_parameter('hardware_enabled', False)
+        self.declare_parameter('allow_provisional', False)
+        self.declare_parameter('hardware_config', '')
+        self.declare_parameter('wrist_calibration', '')
+        self.declare_parameter('primitive_timeout_s', 30.0)
+        self.timeout = self.get_parameter('primitive_timeout_s').value
+        if not 0 < self.timeout <= 120:
+            raise ValueError('primitive_timeout_s must be in (0,120]')
+
+        enabled = self.get_parameter('hardware_enabled').value
+        allow_provisional = self.get_parameter('allow_provisional').value
+        self.session.emit(
+            'server_config', hardware_enabled=enabled, allow_provisional=allow_provisional,
+            primitive_timeout_s=self.timeout,
+        )
+        device = None
+        if enabled:
+            from .primitive_hardware import Hardware
+            from .primitive_worker import Worker
+
+            share = Path(get_package_share_directory('custom_hand_control'))
+            config_override = self.get_parameter('hardware_config').value
+            calibration_override = self.get_parameter('wrist_calibration').value
+            config = (Path(config_override).expanduser() if config_override
+                      else share / 'config' / 'config.provisional.json')
+            calibration = (Path(calibration_override).expanduser() if calibration_override
+                           else share / 'config' / 'primitive_calibration.local.json')
+            for path in (config, calibration):
+                if not path.is_file():
+                    raise ValueError(f'Custom Hand hardware settings file not found: {path}')
+            self.session.snapshot('config', config, copy=True)
+            self.session.snapshot('calibration', calibration, copy=True)
+            device = Hardware(
+                calibration, config_path=config, model_dir=share / 'models',
+                allow_provisional=allow_provisional,
+            )
+            self.session.snapshot('model', device.model_path)
         self._server = ActionServer(
             self,
             ExecuteHandPrimitive,
             '/custom_hand/execute_primitive',
+            callback_group=ReentrantCallbackGroup(),
             execute_callback=self._execute,
             goal_callback=self._goal_request,
             cancel_callback=self._cancel_request,
         )
+        if device is not None:
+            self.worker = Worker(device, period=device.cfg['period_s'],
+                                 report=self._report)
+        self.session.emit('server_ready',hardware_enabled=self.worker is not None)
         self.get_logger().info(
-            'Ready: /custom_hand/execute_primitive (dry-run only; hardware disabled)')
+            f'Ready: /custom_hand/execute_primitive hardware_enabled={self.worker is not None}')
 
     @staticmethod
     def _goal_request(_goal_request):
         return GoalResponse.ACCEPT
 
-    @staticmethod
-    def _cancel_request(_goal_handle):
+    def _cancel_request(self, goal_handle):
+        self.session.emit('cancel_requested',execution_id=goal_handle.request.execution_id,
+                          primitive_id=goal_handle.request.primitive_id,
+                          goal_id=bytes(goal_handle.goal_id.uuid).hex())
         return CancelResponse.ACCEPT
 
+    def _report(self, message):
+        # Worker messages include post-success HOLDING faults and stop failures.
+        self.session.emit('worker_report',message=message)
+        self.get_logger().warning(message)
+
     def _execute(self, goal_handle):
+        goal=goal_handle.request
+        identity=dict(goal_id=bytes(goal_handle.goal_id.uuid).hex(),
+                      execution_id=goal.execution_id,primitive_id=goal.primitive_id,
+                      step_index=goal.step_index)
+        self.session.emit('goal_received',**identity,
+                          request={name:getattr(goal,name) for name in (
+                              'scan_id','execution_id','move_index','step_index','cube_move',
+                              'target_face','face_direction_order','target_face_direction_index',
+                              'clockwise_quarter_turns','primitive_id','dry_run','policy_id')})
+        try:
+            result=self._execute_impl(goal_handle)
+            self.session.emit('goal_result',**identity,status=int(goal_handle.status),
+                              success=result.success,error_code=result.error_code,
+                              error_message=result.error_message)
+            return result
+        except Exception:
+            self.session.exception('action_exception')
+            raise
+
+    def _feedback(self,goal_handle,feedback):
+        self.session.emit('feedback',goal_id=bytes(goal_handle.goal_id.uuid).hex(),
+                          execution_id=goal_handle.request.execution_id,
+                          primitive_id=goal_handle.request.primitive_id,
+                          state=int(feedback.state),message=feedback.message)
+        goal_handle.publish_feedback(feedback)
+
+    def _execute_impl(self, goal_handle):
         goal = goal_handle.request
         result = ExecuteHandPrimitive.Result()
         feedback = ExecuteHandPrimitive.Feedback()
         feedback.state = feedback.STATE_ACCEPTED
         feedback.message = 'Custom Hand primitive 요청을 확인했습니다.'
-        goal_handle.publish_feedback(feedback)
+        self._feedback(goal_handle,feedback)
 
         if (not goal.scan_id or not goal.execution_id or not goal.primitive_id
                 or goal.move_index == 0 or goal.step_index == 0
@@ -56,7 +141,7 @@ class CustomHandPrimitiveServer(Node):
                 '식별자, 유효한 face/move/primitive와 회전량이 필요합니다.')
             feedback.state = feedback.STATE_FAILED
             feedback.message = result.error_message
-            goal_handle.publish_feedback(feedback)
+            self._feedback(goal_handle,feedback)
             goal_handle.abort()
             return result
 
@@ -73,7 +158,7 @@ class CustomHandPrimitiveServer(Node):
                 'target_face와 일치해야 합니다.')
             feedback.state = feedback.STATE_FAILED
             feedback.message = result.error_message
-            goal_handle.publish_feedback(feedback)
+            self._feedback(goal_handle,feedback)
             goal_handle.abort()
             return result
 
@@ -90,7 +175,7 @@ class CustomHandPrimitiveServer(Node):
                 'Custom primitive에는 custom_finger_ppo_v1의 유한한 action 4개가 필요합니다.')
             feedback.state = feedback.STATE_FAILED
             feedback.message = result.error_message
-            goal_handle.publish_feedback(feedback)
+            self._feedback(goal_handle,feedback)
             goal_handle.abort()
             return result
         if not goal.policy_id and goal.policy_action_values:
@@ -99,7 +184,7 @@ class CustomHandPrimitiveServer(Node):
             result.error_message = 'policy_id 없이 policy_action_values를 받을 수 없습니다.'
             feedback.state = feedback.STATE_FAILED
             feedback.message = result.error_message
-            goal_handle.publish_feedback(feedback)
+            self._feedback(goal_handle,feedback)
             goal_handle.abort()
             return result
 
@@ -108,18 +193,51 @@ class CustomHandPrimitiveServer(Node):
             result.error_message = '요청이 취소되었습니다.'
             feedback.state = feedback.STATE_CANCELLED
             feedback.message = result.error_message
-            goal_handle.publish_feedback(feedback)
+            self._feedback(goal_handle,feedback)
             goal_handle.canceled()
+            return result
+
+        if not goal.dry_run and self.worker is not None:
+            from .primitive_worker import Rejected
+            try:
+                job = self.worker.submit(goal.primitive_id, goal.clockwise_quarter_turns,
+                                         goal.execution_id, self.timeout)
+            except Rejected as exc:
+                result.error_code = str(exc)
+                result.error_message = str(exc)
+                feedback.state = feedback.STATE_FAILED
+                feedback.message = result.error_message
+                self._feedback(goal_handle,feedback)
+                goal_handle.abort()
+                return result
+            feedback.state = feedback.STATE_EXECUTING
+            feedback.message = goal.primitive_id
+            self._feedback(goal_handle,feedback)
+            while not job.done.wait(.01):
+                if goal_handle.is_cancel_requested:
+                    job.cancel.set()
+            result.success, result.error_code, result.error_message = job.result
+            canceled = goal_handle.is_cancel_requested and result.error_code == 'CANCELLED'
+            feedback.state = (feedback.STATE_CANCELLED if canceled else
+                              feedback.STATE_COMPLETED if result.success else feedback.STATE_FAILED)
+            feedback.message = result.error_message
+            self._feedback(goal_handle,feedback)
+            if canceled:
+                goal_handle.canceled()
+            elif result.success:
+                goal_handle.succeed()
+            else:
+                goal_handle.abort()
             return result
 
         if not goal.dry_run:
             result.success = False
             result.error_code = 'HARDWARE_NOT_CONFIGURED'
             result.error_message = (
-                'Custom Hand 손가락 정책과 Feetech 손목 제어를 연결하지 않았습니다.')
+                'Custom Hand 실기 모드가 꺼져 있습니다. 이 서버에는 dry_run=true 요청을 보내세요.')
             feedback.state = feedback.STATE_FAILED
             feedback.message = result.error_message
-            goal_handle.publish_feedback(feedback)
+            self._feedback(goal_handle,feedback)
             goal_handle.abort()
             return result
 
@@ -131,18 +249,49 @@ class CustomHandPrimitiveServer(Node):
             'dry-run 요청을 검증했습니다. 모터 명령은 보내지 않았습니다.')
         feedback.state = feedback.STATE_COMPLETED
         feedback.message = result.error_message
-        goal_handle.publish_feedback(feedback)
+        self._feedback(goal_handle,feedback)
         goal_handle.succeed()
         return result
 
 
-def main(args=None):
+def _run(args=None):
     rclpy.init(args=args)
-    node = CustomHandPrimitiveServer()
+    node = None
+    executor = None
     try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
+        node = CustomHandPrimitiveServer()
+        executor = MultiThreadedExecutor(num_threads=4)
+        executor.add_node(node)
+        executor.spin()
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        try:
+            if node is not None and node.worker is not None:
+                stopped = node.worker.close()
+                node.session.emit(
+                    'worker_closed', stop_confirmed=stopped, error=node.worker.last_close_error,
+                )
+        finally:
+            if executor is not None:
+                executor.shutdown()
+            if node is not None:
+                node._server.destroy()
+                node.destroy_node()
+            if rclpy.ok():
+                rclpy.shutdown()
+
+
+def main(args=None):
+    session=get_session()
+    try:
+        _run(args)
+    except Exception:
+        session.exception('server_exception')
+        raise
+    finally:
+        session.close()
+
+
+if __name__ == '__main__':
+    main()
