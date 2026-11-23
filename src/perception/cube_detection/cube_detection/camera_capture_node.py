@@ -21,7 +21,7 @@ from rclpy.qos import (
     qos_profile_sensor_data,
 )
 from sensor_msgs.msg import Image
-from system_interfaces.msg import CubeSolution, CubeState, FaceDetectionArray
+from system_interfaces.msg import CubeSolution, CubeState, CubeColorReference, FaceDetectionArray
 from system_interfaces.srv import SolveCube
 
 from .cube_state import (
@@ -135,6 +135,11 @@ class CubeCameraCaptureNode(Node):
         self.state_publisher = self.create_publisher(
             CubeState, str(self.get_parameter("cube_state_topic").value), 10
         )
+        reference_qos = QoSProfile(
+            depth=1, reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.color_reference_publisher = self.create_publisher(
+            CubeColorReference, '/cube/color_reference', reference_qos)
         solution_qos = QoSProfile(
             depth=10,
             reliability=ReliabilityPolicy.RELIABLE,
@@ -201,6 +206,16 @@ class CubeCameraCaptureNode(Node):
             "press R to restart or Q to quit; rotate the whole cube without "
             "twisting individual faces."
         )
+        self._invalidate_color_reference()
+
+    def _invalidate_color_reference(self):
+        # Invalid zero colors explicitly clear a previous transient reference
+        # when a new scan starts or the current scan fails validation.
+        reference = CubeColorReference()
+        reference.header.stamp = self.get_clock().now().to_msg()
+        reference.header.frame_id = self.frame_id
+        reference.scan_id = self._scan_id
+        self.color_reference_publisher.publish(reference)
 
     def _on_timer(self):
         now = time.monotonic()
@@ -258,6 +273,7 @@ class CubeCameraCaptureNode(Node):
 
     def _start_new_scan(self):
         self._scan_id = uuid.uuid4().hex
+        self._invalidate_color_reference()
         self._face_index = 0
         self._phase = "capturing"
         self._completed = False
@@ -435,6 +451,7 @@ class CubeCameraCaptureNode(Node):
         state.validation_errors = validation_errors
         self.state_publisher.publish(state)
         if not state.valid:
+            self._invalidate_color_reference()
             self._phase = "invalid"
             self.get_logger().error(
                 "Cube state rejected: " + "; ".join(validation_errors)
@@ -442,6 +459,12 @@ class CubeCameraCaptureNode(Node):
             self.get_logger().info("Press R to start a new six-face scan.")
             return
 
+        reference = CubeColorReference()
+        reference.header = state.header
+        reference.scan_id = state.scan_id
+        reference.center_bgr = [int(v) for face in 'URFDLB'
+                                for v in self._captures[face][4]]
+        self.color_reference_publisher.publish(reference)
         self._phase = "valid"
         self.get_logger().info(f"Valid URFDLB cube state: {state.facelets}")
         if not self.solve_client.wait_for_service(timeout_sec=0.1):

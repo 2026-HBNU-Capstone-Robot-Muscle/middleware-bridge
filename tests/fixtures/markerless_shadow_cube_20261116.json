@@ -1,0 +1,28 @@
+{
+  "capture_timestamp": "2026-11-16T21:57:52.805518+09:00",
+  "exposure": -5.0,
+  "source_images": [
+    {
+      "file": "original_1.png",
+      "sha256": "70d2f6af81699f59a9350388761045fbf0e921e456484f40e2db347f68b7eebd"
+    },
+    {
+      "file": "original_2.png",
+      "sha256": "edb465916cd061f17ee2d12859a554ff4d787a32c23da22365c3315e82378b31"
+    },
+    {
+      "file": "original_3.png",
+      "sha256": "de75368a0197f5554cf13f074fee5ec5973028bcfb380660a6935cd619a97e81"
+    }
+  ],
+  "crop_xyxy": [
+    200,
+    130,
+    650,
+    610
+  ],
+  "fixture_sha256": "c020b70f786ce45c87ee5d443ddb2f9cafddd02dc623a36a54596f2e09637c2d",
+  "roi_source": "Manually designated coarse search regions; not YOLO detections or measured physical corners.",
+  "physical_pose_ground_truth_available": false,
+  "purpose": "Visible front grid recovery and rejection of the clipped-highlight upper face; not metric accuracy."
+}

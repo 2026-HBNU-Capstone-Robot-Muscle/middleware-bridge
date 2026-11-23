@@ -1,0 +1,24 @@
+{
+  "capture_wall_clock_iso": "2026-11-16T21:41:17.502404+09:00",
+  "image_placement_review": "Cube is fully in frame; upper and front faces visible, with a narrow third face.",
+  "image_features_passed": false,
+  "frames_reviewed": 3,
+  "search_roi_source": "Manual coarse image-specific ROIs, converted to oriented rectangles; not YOLO or ground truth.",
+  "camera_stream_resolution": [
+    1280,
+    720
+  ],
+  "six_face_reference_available": false,
+  "wrist_marker_detected": false,
+  "physical_pose_verified": false,
+  "policy_pose_ready": false,
+  "motor_commands_sent": 0,
+  "offline_hue_trials_improved_acceptance": false,
+  "unsuccessful_production_changes_reverted": true,
+  "source_restored_sha256": "e4cd4e28f0cfae6162fd1531df94665060019d2d50bfa90ed82e2db1b2a2e64e",
+  "remaining": [
+    "Current detector rejects the perspective grid in all three frames.",
+    "Upper white stickers have glare; front shadow also needs robust feature handling.",
+    "No accepted six-face color reference or verified metric registration yet."
+  ]
+}

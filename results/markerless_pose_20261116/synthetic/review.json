@@ -1,0 +1,13 @@
+{
+  "synthetic_only": true,
+  "position_error_mm": 0.48668665179777076,
+  "orientation_error_deg": 0.19205863931906753,
+  "visible_faces": [
+    "F",
+    "D"
+  ],
+  "reprojection_rms_px": 0.45298095209448,
+  "camera_binding_verified": false,
+  "physical_pose_verified": false,
+  "policy_pose_ready": false
+}

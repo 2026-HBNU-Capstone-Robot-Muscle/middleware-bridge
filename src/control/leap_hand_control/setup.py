@@ -19,6 +19,7 @@ setup(
     description='TODO: Package description',
     license='TODO: License declaration',
     extras_require={
+        'hardware': ['dynamixel-sdk==4.1.0'],
         'test': [
             'pytest',
         ],
@@ -26,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'leap_hand_primitive_server = leap_hand_control.primitive_server:main',
+            'leap_hand_adapter = leap_hand_control.adapter_node:main',
             'leap_policy_shadow = leap_hand_control.policy_shadow_node:main',
         ],
     },

@@ -1,6 +1,7 @@
 """Infer LEAP policy outputs from timestamped ROS input without motor writes."""
 
 from pathlib import Path
+from copy import deepcopy
 
 import numpy as np
 import rclpy
@@ -14,6 +15,7 @@ from leap_hand_control.observation_builder import (
     LeapObservationBuilder,
 )
 from leap_hand_control.policy_adapter import LeapPolicyAdapter
+from leap_hand_control.joint_mapping import ordered_positions
 
 
 def _stamp_ns(stamp):
@@ -56,6 +58,10 @@ class LeapPolicyShadowNode(Node):
         self._policy = LeapPolicyAdapter(policy_path)
         self._builder = LeapObservationBuilder()
         self._last_identity = None
+        self._last_source_stamps = None
+        self._last_goal = None
+        self._last_accepted_at = None
+        self._history_valid = False
         self._input_subscription = self.create_subscription(
             LeapPolicyInput, '/leap_hand/policy_input', self._on_input,
             QoSProfile(depth=1))
@@ -63,7 +69,8 @@ class LeapPolicyShadowNode(Node):
             HandPolicyAction, '/leap_hand/policy_action', QoSProfile(depth=1))
         self.get_logger().info(
             'Shadow inference ready: /leap_hand/policy_input → '
-            '/leap_hand/policy_action; motor output is not connected.')
+            '/leap_hand/policy_action; motor output is not connected. '
+            'last_action stays zero: no applied-action acknowledgement is supplied.')
 
     def _validate_stamp(self, stamp, label, now_ns):
         value = _stamp_ns(stamp)
@@ -94,14 +101,7 @@ class LeapPolicyShadowNode(Node):
                     'cube_pose and palm_pose must use the configured world_frame.')
 
             joint_state = message.leap_joint_state
-            if (len(joint_state.name) != 16 or len(joint_state.position) != 16
-                    or set(joint_state.name) != set(JOINT_NAMES)):
-                raise ValueError(
-                    'LEAP joint_state must contain the 16 reference joint names.')
-            position_by_name = dict(zip(joint_state.name, joint_state.position))
-            q_meas = _finite_vector(
-                [position_by_name[name] for name in JOINT_NAMES], 16,
-                'LEAP joint positions')
+            q_meas = ordered_positions(joint_state.name, joint_state.position)
             q_cmd = _finite_vector(
                 message.commanded_joint_positions, 16,
                 'commanded_joint_positions')
@@ -122,14 +122,34 @@ class LeapPolicyShadowNode(Node):
                 message.goal_orientation, 'goal orientation')
 
             identity = (message.scan_id, message.execution_id)
-            if identity != self._last_identity:
-                self._builder.reset()
-                self._last_identity = identity
-            observation = self._builder.build(
+            stamps = tuple(_stamp_ns(value.header.stamp) for value in (
+                message.cube_pose, message.palm_pose, joint_state))
+            if identity == self._last_identity and self._last_source_stamps is not None:
+                if (any(a < b for a, b in zip(stamps, self._last_source_stamps))
+                        or stamps[-1] == self._last_source_stamps[-1]):
+                    self.get_logger().warning('LEAP duplicate/out-of-order source sample ignored.')
+                    return
+
+            # Build/infer on a candidate history. Failed inference/publication
+            # cannot advance accepted source stamps or commit half a sample.
+            builder = deepcopy(self._builder)
+            new_history = (identity != self._last_identity or not self._history_valid
+                           or self._last_accepted_at is None
+                           or now_ns-self._last_accepted_at > self._max_age_ms*1_000_000)
+            if new_history:
+                builder.reset()  # Preserve the108-value policy's zero-padded reset.
+            elif not np.isclose(abs(float(goal_quat @ self._last_goal)), 1., rtol=0., atol=1e-9):
+                builder.fill_orientation_history(cube_quat, goal_quat)
+            # A shadow proposal was never sent to hardware. The current input
+            # contract has no applied-action acknowledgement; do not pretend
+            # that the preceding proposal was the previous executed action.
+            builder.set_last_action(np.zeros(16))
+            observation = builder.build(
                 q_meas, q_cmd, palm_position, cube_position,
                 cube_quat, goal_quat)
-            action = self._policy.infer(observation)
-            self._builder.set_last_action(action)
+            action = _finite_vector(self._policy.infer(observation), 16, 'Policy action')
+            if np.any(np.abs(action) > 1.):
+                raise ValueError('Policy action is outside the normalized range.')
 
             output = HandPolicyAction()
             output.header = message.header
@@ -140,7 +160,15 @@ class LeapPolicyShadowNode(Node):
             output.values = [float(value) for value in action]
             output.shadow_only = True
             self._action_publisher.publish(output)
-        except (ValueError, KeyError) as exc:
+            self._builder = builder
+            self._last_identity = identity
+            self._last_source_stamps = stamps
+            self._last_goal = goal_quat.copy()
+            self._last_accepted_at = now_ns
+            self._history_valid = True
+        except (ValueError, KeyError, RuntimeError) as exc:
+            self._builder.reset()
+            self._history_valid = False
             self.get_logger().warning(f'LEAP policy input rejected: {exc}')
 
 

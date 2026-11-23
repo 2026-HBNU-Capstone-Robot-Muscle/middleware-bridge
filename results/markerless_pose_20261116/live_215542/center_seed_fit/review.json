@@ -1,0 +1,114 @@
+{
+  "capture_wall_clock_iso": "2026-11-16T21:55:47.366621+09:00",
+  "camera_metadata": {
+    "backend": "DSHOW",
+    "requested_format": "MJPG",
+    "actual_size": [
+      1280,
+      720
+    ],
+    "actual_format": "MJPG",
+    "reported_fps": 30.00003000003,
+    "camera_index": 1,
+    "device_name": "Streaming Webcam",
+    "attempts": [
+      {
+        "backend": "DSHOW",
+        "requested_format": "MJPG",
+        "actual_size": [
+          1280,
+          720
+        ],
+        "actual_format": "MJPG",
+        "reported_fps": 30.00003000003
+      }
+    ]
+  },
+  "roi_source": "Manual coarse image-specific ROIs, converted to oriented rectangles; not YOLO or ground truth.",
+  "calibration_sha256": "86c1f866ae6505c1352d4e9d681d803476c513b12e3c5ab79739c1526ada1f92",
+  "camera_binding_verified": false,
+  "six_face_reference_available": false,
+  "policy_pose_ready": false,
+  "physical_pose_verified": false,
+  "new_devices_opened": false,
+  "motor_commands_sent": 0,
+  "frames": [
+    {
+      "file": "webcam_support_view_20261024_215542_935025\\frame_1.png",
+      "sha256": "ff2862b79875dcee88cd0441c374134b40a6bb82a992fb6b28afcaf21ed15492",
+      "overlay": "frame_1_overlay.jpg",
+      "marker_ids": [],
+      "features": [
+        {
+          "face_search_region": "upper",
+          "accepted": false,
+          "reason": "Sticker centers do not fit a perspective3x3 face grid",
+          "processing_ms": 146.94629999939934
+        },
+        {
+          "face_search_region": "front",
+          "accepted": false,
+          "reason": "Sticker centers do not fit a perspective3x3 face grid",
+          "processing_ms": 31.729900001664646
+        }
+      ]
+    },
+    {
+      "file": "webcam_support_view_20261024_215542_935025\\frame_2.png",
+      "sha256": "9253aefcf937bacad6843a06cdf8a9223b36e7f3cf656af11c87c3d0c97b9eff",
+      "overlay": "frame_2_overlay.jpg",
+      "marker_ids": [],
+      "features": [
+        {
+          "face_search_region": "upper",
+          "accepted": false,
+          "reason": "Sticker centers do not fit a perspective3x3 face grid",
+          "processing_ms": 36.94739999991725
+        },
+        {
+          "face_search_region": "front",
+          "accepted": true,
+          "corners_px": [
+            [
+              278.050611419457,
+              383.03996933619334
+            ],
+            [
+              530.8902481566831,
+              413.18292671150823
+            ],
+            [
+              568.2710477730233,
+              547.5741409729508
+            ],
+            [
+              353.43530898936564,
+              515.9349065925054
+            ]
+          ],
+          "processing_ms": 27.78029999899445
+        }
+      ]
+    },
+    {
+      "file": "webcam_support_view_20261024_215542_935025\\frame_3.png",
+      "sha256": "c61fa3670c850857387bd34761011d5887e726881cac1f735990d644f89872f4",
+      "overlay": "frame_3_overlay.jpg",
+      "marker_ids": [],
+      "features": [
+        {
+          "face_search_region": "upper",
+          "accepted": false,
+          "reason": "Sticker centers do not fit a perspective3x3 face grid",
+          "processing_ms": 30.87270000105491
+        },
+        {
+          "face_search_region": "front",
+          "accepted": false,
+          "reason": "Sticker centers do not fit a perspective3x3 face grid",
+          "processing_ms": 37.85989999960293
+        }
+      ]
+    }
+  ]
+}

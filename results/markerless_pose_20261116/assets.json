@@ -1,0 +1,66 @@
+{
+  "assets": [
+    {
+      "path": "C:\\Users\\\uae40\uc900\uc11c\\Documents\\Codex\\2026-09-23\\files-mentioned-by-the-user-leap\\outputs\\camera0.npz",
+      "sha256": "26ecc4cf57a495afdf7ebb2335b17819279a1f4b5376ab2cc4d46b762f3e6d40",
+      "width": 640,
+      "height": 480,
+      "rms_px": 1.168773929408319,
+      "physical_camera_assignment_verified": false
+    },
+    {
+      "path": "C:\\Users\\\uae40\uc900\uc11c\\Documents\\Codex\\2026-09-23\\files-mentioned-by-the-user-leap\\outputs\\camera1.npz",
+      "sha256": "6913ecc0068534c2e82f9e0cd80b50ca52e16c6f966ec03d9d6e9a252bf37c46",
+      "width": 640,
+      "height": 480,
+      "rms_px": 1.0595940992386073,
+      "physical_camera_assignment_verified": false
+    },
+    {
+      "path": "C:\\Users\\\uae40\uc900\uc11c\\Documents\\Codex\\2026-09-23\\files-mentioned-by-the-user-leap\\outputs\\camera1_720.npz",
+      "sha256": "86c1f866ae6505c1352d4e9d681d803476c513b12e3c5ab79739c1526ada1f92",
+      "width": 1280,
+      "height": 720,
+      "rms_px": 0.9881658663858315,
+      "physical_camera_assignment_verified": false
+    },
+    {
+      "label": "saved_cube",
+      "path": "C:\\Users\\\uae40\uc900\uc11c\\Documents\\Codex\\2026-09-23\\files-mentioned-by-the-user-leap\\outputs\\final_grip_pose_20261116_160804_734562\\camera\\frame_00000.jpg",
+      "image_resolution": [
+        1280,
+        720
+      ],
+      "sha256": "bc70da9e256ba58839fa1f516339c7ca0fe7d9392604a67470d7f9b7a7598978",
+      "roi_source": "Manual coarse search ROIs for saved-image feature diagnostics. Not YOLO results or surveyed face corners.",
+      "physical_pose_ground_truth_available": false
+    },
+    {
+      "label": "saved_clear_cube",
+      "path": "C:\\Users\\\uae40\uc900\uc11c\\Documents\\Codex\\2026-09-23\\files-mentioned-by-the-user-leap\\outputs\\middle_clearance_probe_20261106_230902_998326\\cube_grasp_hold.jpg",
+      "image_resolution": [
+        1280,
+        720
+      ],
+      "sha256": "2a1fd03e417b3a4b52b10d63d8cab230a11650593f0fe2b27f18b8971e70a8c4",
+      "roi_source": "Manual coarse search ROIs for saved-image feature diagnostics. Not YOLO results or surveyed face corners.",
+      "physical_pose_ground_truth_available": false
+    },
+    {
+      "label": "saved_empty",
+      "path": "C:\\Users\\\uae40\uc900\uc11c\\Documents\\Codex\\2026-09-23\\files-mentioned-by-the-user-leap\\outputs\\cube_grasp_hold_20261116_200443_746252\\camera\\frame_00000.jpg",
+      "image_resolution": [
+        1280,
+        720
+      ],
+      "sha256": "cad48c885251ae0369e469dd885b8f883b3f5ceb0a1b798523fd0a116817399f",
+      "roi_source": "Manual coarse search ROIs for saved-image feature diagnostics. Not YOLO results or surveyed face corners.",
+      "physical_pose_ground_truth_available": false
+    }
+  ],
+  "devices_opened": false,
+  "live_camera_assignment_verified": false,
+  "registration_verified": false,
+  "marker_size_m_candidate": 0.027,
+  "cube_side_m": 0.055
+}

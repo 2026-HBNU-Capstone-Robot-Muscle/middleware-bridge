@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from system_interfaces.action import ExecuteHandPrimitive
 from leap_hand_control.policy_adapter import LeapPolicyAdapter
@@ -40,6 +41,7 @@ class LeapHandPrimitiveServer(Node):
             execute_callback=self._execute,
             goal_callback=self._goal_request,
             cancel_callback=self._cancel_request,
+            callback_group=ReentrantCallbackGroup(),
         )
         self.get_logger().info(
             'Ready: /leap_hand/execute_primitive (dry-run only; hardware disabled)')
@@ -52,7 +54,7 @@ class LeapHandPrimitiveServer(Node):
     def _cancel_request(_goal_handle):
         return CancelResponse.ACCEPT
 
-    def _execute(self, goal_handle):
+    async def _execute(self, goal_handle):
         goal = goal_handle.request
         result = ExecuteHandPrimitive.Result()
         feedback = ExecuteHandPrimitive.Feedback()
@@ -145,6 +147,11 @@ class LeapHandPrimitiveServer(Node):
             goal_handle.abort()
             return result
 
+        return await self._execute_validated(goal_handle, result, feedback)
+
+    async def _execute_validated(self, goal_handle, result, feedback):
+        """Overridable adapter hook after the unchanged request validation."""
+        goal = goal_handle.request
         result.success = True
         result.error_code = ''
         result.error_message = (

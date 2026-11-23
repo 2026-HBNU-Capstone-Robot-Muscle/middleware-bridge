@@ -17,6 +17,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from cube_execution.calibration import validate_calibration_file
+from cube_execution.action_call import call_action, positive_seconds
 from system_interfaces.action import (
     ExecuteCubeSolution, ExecuteHandPrimitive, InferHandPolicy)
 from system_interfaces.msg import (
@@ -128,8 +129,19 @@ class CubeSequenceExecutor(Node):
         self._solutions = OrderedDict()
         self._solutions_lock = Lock()
         self._execution_busy = False
+        self._execution_faulted = False
         self._execution_busy_lock = Lock()
         self._active_goal_handle = None
+        for name, default in (
+                ('hand_timeout_s', 520.0), ('policy_timeout_s', 10.0),
+                ('cancel_timeout_s', 2.0)):
+            self.declare_parameter(name, default)
+        self._hand_timeout_s = positive_seconds(
+            self.get_parameter('hand_timeout_s').value, 'hand_timeout_s')
+        self._policy_timeout_s = positive_seconds(
+            self.get_parameter('policy_timeout_s').value, 'policy_timeout_s')
+        self._cancel_timeout_s = positive_seconds(
+            self.get_parameter('cancel_timeout_s').value, 'cancel_timeout_s')
         self.declare_parameter('calibration_file', '')
         calibration_file = self.get_parameter('calibration_file').value
         self._calibration_errors = validate_calibration_file(calibration_file)
@@ -166,7 +178,7 @@ class CubeSequenceExecutor(Node):
 
     def _goal_request(self, _goal_request):
         with self._execution_busy_lock:
-            if self._execution_busy:
+            if self._execution_busy or self._execution_faulted:
                 return GoalResponse.REJECT
             self._execution_busy = True
         return GoalResponse.ACCEPT
@@ -339,7 +351,8 @@ class CubeSequenceExecutor(Node):
                     goal_handle, goal, result, step_index, step,
                     policy_id, observation)
                 if policy_result is None or not policy_result.success:
-                    if goal_handle.is_cancel_requested:
+                    if (goal_handle.is_cancel_requested and policy_result is not None
+                            and policy_result.error_code == 'CANCELLED'):
                         result.error_code = 'CANCELLED'
                         result.error_message = '정책 추론 경계에서 실행이 취소되었습니다.'
                         goal_handle.canceled()
@@ -362,31 +375,10 @@ class CubeSequenceExecutor(Node):
                     np.asarray(observation, dtype=np.float64).tolist())
                 result.policy_action_sizes.append(len(action_values))
                 result.policy_action_values.extend(action_values)
-                self._advance_open_loop_state(
-                    open_state, leap_builder, step, action_values, goal_quat)
-                try:
-                    direction_order_after = self._face_direction_order(
-                        open_state, initial_cube_quat_wxyz)
-                    target_direction_after = direction_order_after.index(
-                        step['target_face'])
-                except (ValueError, FloatingPointError) as exc:
-                    return self._fail(
-                        goal_handle, result, workflow_id,
-                        'FACE_DIRECTION_UPDATE_FAILED', str(exc),
-                        move_index=step['move_index'], total_moves=total_moves,
-                        current_move=step['cube_move'], step_index=step_index,
-                        total_steps=total_steps, hand_id=step['hand_id'],
-                        primitive_id=step['primitive_id'])
-                result.face_direction_orders_before.append(
-                    direction_order_before)
-                result.face_direction_orders_after.append(direction_order_after)
-                result.target_face_direction_indices_before.append(
-                    target_direction_before)
-                result.target_face_direction_indices_after.append(
-                    target_direction_after)
-                step['face_direction_order'] = direction_order_after
-                step['target_face_direction_index'] = target_direction_after
-                previous_goal_face = step['target_face']
+                # Dispatch in the current frame. Predicting success here used
+                # to send an already-rotated frame and commit failed motions.
+                step['face_direction_order'] = direction_order_before
+                step['target_face_direction_index'] = target_direction_before
                 policy_status = self._publish_status(
                     goal.scan_id, result.execution_id, workflow_id,
                     CubeExecutionStatus.STATE_EXECUTING,
@@ -402,7 +394,8 @@ class CubeSequenceExecutor(Node):
             hand_result, error_message = await self._dispatch_step(
                 goal_handle, goal, result, step_index, step)
             if hand_result is None or not hand_result.success:
-                if goal_handle.is_cancel_requested:
+                if (goal_handle.is_cancel_requested and hand_result is not None
+                        and hand_result.error_code == 'CANCELLED'):
                     result.success = False
                     result.error_code = 'CANCELLED'
                     result.error_message = '실행이 hand primitive 경계에서 취소되었습니다.'
@@ -430,10 +423,44 @@ class CubeSequenceExecutor(Node):
                     total_steps=total_steps, hand_id=step['hand_id'],
                     primitive_id=step['primitive_id'])
 
+            if goal.run_pretrained_policies:
+                try:
+                    self._advance_open_loop_state(
+                        open_state, leap_builder, step, action_values, goal_quat)
+                    direction_order_after = self._face_direction_order(
+                        open_state, initial_cube_quat_wxyz)
+                    target_direction_after = direction_order_after.index(
+                        step['target_face'])
+                except (ValueError, FloatingPointError) as exc:
+                    return self._fail(
+                        goal_handle, result, workflow_id,
+                        'FACE_DIRECTION_UPDATE_FAILED', str(exc),
+                        move_index=step['move_index'], total_moves=total_moves,
+                        current_move=step['cube_move'], step_index=step_index,
+                        total_steps=total_steps, hand_id=step['hand_id'],
+                        primitive_id=step['primitive_id'])
+                result.face_direction_orders_before.append(direction_order_before)
+                result.face_direction_orders_after.append(direction_order_after)
+                result.target_face_direction_indices_before.append(target_direction_before)
+                result.target_face_direction_indices_after.append(target_direction_after)
+                previous_goal_face = step['target_face']
+
             result.completed_steps = step_index
             if step['primitive_id'] == 'rotate_upper_layer':
                 result.completed_moves = step['move_index']
             previous_hand = step['hand_id']
+
+        if goal_handle.is_cancel_requested:
+            result.error_code = 'CANCELLED'
+            result.error_message = '마지막 primitive 완료 후 실행이 취소되었습니다.'
+            goal_handle.canceled()
+            self._publish_status(
+                goal.scan_id, result.execution_id, workflow_id,
+                CubeExecutionStatus.STATE_CANCELLED, move_index=total_moves,
+                total_moves=total_moves, step_index=total_steps,
+                total_steps=total_steps, error_code=result.error_code,
+                message=result.error_message)
+            return result
 
         result.success = True
         result.error_code = ''
@@ -474,29 +501,9 @@ class CubeSequenceExecutor(Node):
         request.policy_id = step.get('policy_id', '')
         request.policy_action_values = step.get('policy_action_values', [])
 
-        try:
-            child_goal = await client.send_goal_async(request)
-            if not child_goal.accepted:
-                return None, f"{step['hand_id']}가 primitive 요청을 거부했습니다."
-
-            result_future = child_goal.get_result_async()
-            cancellation = {'sent': False}
-
-            def cancel_child_if_requested():
-                if parent_goal_handle.is_cancel_requested and not cancellation['sent']:
-                    cancellation['sent'] = True
-                    child_goal.cancel_goal_async()
-
-            cancel_timer = self.create_timer(
-                0.05, cancel_child_if_requested, callback_group=self._callback_group)
-            try:
-                wrapped_result = await result_future
-            finally:
-                cancel_timer.cancel()
-                self.destroy_timer(cancel_timer)
-            return wrapped_result.result, ''
-        except Exception as exc:  # ROS action transport errors become action results.
-            return None, f"{step['hand_id']} action 오류: {exc}"
+        return await self._call_child(
+            client, request, parent_goal_handle, 'HAND',
+            self._hand_timeout_s, ExecuteHandPrimitive.Result)
 
     async def _infer_policy(
             self, parent_goal_handle, parent_goal, parent_result, step_index,
@@ -508,30 +515,27 @@ class CubeSequenceExecutor(Node):
         request.hand_id = step['hand_id']
         request.policy_id = policy_id
         request.observation = np.asarray(observation, dtype=np.float64).tolist()
-        try:
-            goal_handle = await self._policy_client.send_goal_async(request)
-            if not goal_handle.accepted:
-                return None, '정책 추론 액션 목표가 거부됐습니다.'
-            result_future = goal_handle.get_result_async()
-            cancellation = {'sent': False}
+        return await self._call_child(
+            self._policy_client, request, parent_goal_handle, 'POLICY',
+            self._policy_timeout_s, InferHandPolicy.Result)
 
-            def cancel_policy_if_requested():
-                if (parent_goal_handle.is_cancel_requested
-                        and not cancellation['sent']):
-                    cancellation['sent'] = True
-                    goal_handle.cancel_goal_async()
-
-            timer = self.create_timer(
-                0.05, cancel_policy_if_requested,
-                callback_group=self._callback_group)
-            try:
-                wrapped = await result_future
-            finally:
-                timer.cancel()
-                self.destroy_timer(timer)
-            return wrapped.result, ''
-        except Exception as exc:
-            return None, f'정책 추론 action 오류: {exc}'
+    async def _call_child(self, client, request, parent, label, timeout_s, result_type):
+        outcome = await call_action(
+            self, client, request, cancelled=lambda: parent.is_cancel_requested,
+            timeout_s=timeout_s, cancel_timeout_s=self._cancel_timeout_s,
+            callback_group=self._callback_group, label=label)
+        if outcome.uncertain:
+            with self._execution_busy_lock:
+                self._execution_faulted = True
+            self.get_logger().error(
+                f'{outcome.error_code}: 손의 종료 상태가 불명확해 새 실행을 차단합니다.')
+        if outcome.error_code:
+            failed = result_type()
+            failed.success = False
+            failed.error_code = outcome.error_code
+            failed.error_message = outcome.message
+            return failed, outcome.message
+        return outcome.result, ''
 
     @staticmethod
     def _validate_open_loop_state(state):

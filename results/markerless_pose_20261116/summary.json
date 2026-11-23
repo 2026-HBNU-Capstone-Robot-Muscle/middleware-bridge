@@ -1,0 +1,57 @@
+{
+  "software_checks": {
+    "timestamp_utc": "2026-11-16T12:20:21.632897+00:00",
+    "tests": 100,
+    "failures": 0,
+    "errors": 0,
+    "passed": true,
+    "ros_bindings": "stand-ins; real executor control flow and transport wrapper tested",
+    "ros_runtime_tested": false,
+    "devices_opened": false,
+    "physical_execution_enabled": false
+  },
+  "synthetic": {
+    "synthetic_only": true,
+    "position_error_mm": 0.48668665179777076,
+    "orientation_error_deg": 0.19205863931906753,
+    "visible_faces": [
+      "F",
+      "D"
+    ],
+    "reprojection_rms_px": 0.45298095209448,
+    "camera_binding_verified": false,
+    "physical_pose_verified": false,
+    "policy_pose_ready": false
+  },
+  "saved_image_diagnostics": [
+    {
+      "case": "saved_clear_cube",
+      "accepted_grid_faces": 1,
+      "attempted_rois": 2,
+      "manual_ROIs": true,
+      "pose_estimated": false,
+      "physical_pose_verified": false
+    },
+    {
+      "case": "saved_cube",
+      "accepted_grid_faces": 0,
+      "attempted_rois": 2,
+      "manual_ROIs": true,
+      "pose_estimated": false,
+      "physical_pose_verified": false
+    },
+    {
+      "case": "saved_empty",
+      "accepted_grid_faces": 0,
+      "attempted_rois": 1,
+      "manual_ROIs": true,
+      "pose_estimated": false,
+      "physical_pose_verified": false
+    }
+  ],
+  "registered_physical_pose_verified": false,
+  "live_YOLO_pipeline_tested": false,
+  "ros_runtime_tested": false,
+  "hardware_commands_sent": 0,
+  "source_note": "Saved images use manually provided coarse search ROIs; no surveyed 3D ground truth."
+}

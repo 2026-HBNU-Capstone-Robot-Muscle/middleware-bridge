@@ -1,0 +1,11 @@
+{
+  "timestamp_utc": "2026-11-23T23:47:14.114540+00:00",
+  "tests": 103,
+  "failures": 0,
+  "errors": 0,
+  "passed": true,
+  "ros_bindings": "stand-ins; real executor control flow and transport wrapper tested",
+  "ros_runtime_tested": false,
+  "devices_opened": false,
+  "physical_execution_enabled": false
+}

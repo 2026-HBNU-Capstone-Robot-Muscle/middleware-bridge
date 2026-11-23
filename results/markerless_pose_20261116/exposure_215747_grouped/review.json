@@ -1,0 +1,463 @@
+{
+  "capture_timestamp": "2026-11-16T21:57:52.805518+09:00",
+  "settings_restore_verified": true,
+  "summary": [
+    {
+      "stage": "original",
+      "exposure": -5.0,
+      "frames": 3,
+      "before_two_faces": 0,
+      "after_two_faces": 0,
+      "by_face": {
+        "upper": 0,
+        "front": 2
+      }
+    },
+    {
+      "stage": "darker_1",
+      "exposure": -6.0,
+      "frames": 3,
+      "before_two_faces": 0,
+      "after_two_faces": 0,
+      "by_face": {
+        "upper": 0,
+        "front": 3
+      }
+    },
+    {
+      "stage": "darker_2",
+      "exposure": -7.0,
+      "frames": 3,
+      "before_two_faces": 0,
+      "after_two_faces": 0,
+      "by_face": {
+        "upper": 0,
+        "front": 1
+      }
+    }
+  ],
+  "frames": [
+    {
+      "file": "markerless_camera_exposure_20261116_215747_773650\\original_1.png",
+      "sha256": "70d2f6af81699f59a9350388761045fbf0e921e456484f40e2db347f68b7eebd",
+      "stage": "original",
+      "exposure": -5.0,
+      "features": [
+        {
+          "region": "upper",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 121.73239999901853
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 38.5418000005302
+          }
+        },
+        {
+          "region": "front",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 8.946899997681612
+          },
+          "after": {
+            "accepted": true,
+            "corners_px": [
+              [
+                256.809828835287,
+                370.4404884221089
+              ],
+              [
+                527.0686399983359,
+                412.75983841410095
+              ],
+              [
+                549.424399243792,
+                537.4110905667504
+              ],
+              [
+                350.05075084462464,
+                519.8123849333342
+              ]
+            ],
+            "processing_ms": 60.19860000014887
+          }
+        }
+      ],
+      "marker_ids": []
+    },
+    {
+      "file": "markerless_camera_exposure_20261116_215747_773650\\original_2.png",
+      "sha256": "edb465916cd061f17ee2d12859a554ff4d787a32c23da22365c3315e82378b31",
+      "stage": "original",
+      "exposure": -5.0,
+      "features": [
+        {
+          "region": "upper",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 16.59010000003036
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 39.75999999966007
+          }
+        },
+        {
+          "region": "front",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 10.431300001073396
+          },
+          "after": {
+            "accepted": true,
+            "corners_px": [
+              [
+                282.4008133828521,
+                385.8322799536601
+              ],
+              [
+                529.3628536946277,
+                414.01907206862734
+              ],
+              [
+                561.2193878949839,
+                543.4144423337323
+              ],
+              [
+                347.7571358664328,
+                517.0088051610783
+              ]
+            ],
+            "processing_ms": 53.589900002407376
+          }
+        }
+      ],
+      "marker_ids": []
+    },
+    {
+      "file": "markerless_camera_exposure_20261116_215747_773650\\original_3.png",
+      "sha256": "de75368a0197f5554cf13f074fee5ec5973028bcfb380660a6935cd619a97e81",
+      "stage": "original",
+      "exposure": -5.0,
+      "features": [
+        {
+          "region": "upper",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 18.470700000762008
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 37.81670000171289
+          }
+        },
+        {
+          "region": "front",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 11.13690000056522
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 56.21650000102818
+          }
+        }
+      ],
+      "marker_ids": []
+    },
+    {
+      "file": "markerless_camera_exposure_20261116_215747_773650\\darker_1_1.png",
+      "sha256": "8f0790e5471720e166a0634deb1fd7b8d58784e0be97b1688b9677e6446c0884",
+      "stage": "darker_1",
+      "exposure": -6.0,
+      "features": [
+        {
+          "region": "upper",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 14.26299999729963
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 37.420999997266335
+          }
+        },
+        {
+          "region": "front",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 7.9430000005231705
+          },
+          "after": {
+            "accepted": true,
+            "corners_px": [
+              [
+                259.34420426635256,
+                379.6581918598335
+              ],
+              [
+                523.5393367321407,
+                409.5005067624547
+              ],
+              [
+                563.6345928220776,
+                540.1274475181623
+              ],
+              [
+                349.61565357643565,
+                522.9657877435534
+              ]
+            ],
+            "processing_ms": 54.07019999984186
+          }
+        }
+      ],
+      "marker_ids": []
+    },
+    {
+      "file": "markerless_camera_exposure_20261116_215747_773650\\darker_1_2.png",
+      "sha256": "a7285cf13a6a35602ddea8ca75a94303ba5f7b6a5d88d46809aac360012b91d4",
+      "stage": "darker_1",
+      "exposure": -6.0,
+      "features": [
+        {
+          "region": "upper",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 14.953699999750825
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 27.83599999747821
+          }
+        },
+        {
+          "region": "front",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 9.944899997208267
+          },
+          "after": {
+            "accepted": true,
+            "corners_px": [
+              [
+                273.2751684724921,
+                381.5669689374562
+              ],
+              [
+                526.8167312795409,
+                415.5799720342839
+              ],
+              [
+                561.5495692156403,
+                541.916777049511
+              ],
+              [
+                345.4854273540634,
+                521.3219149039126
+              ]
+            ],
+            "processing_ms": 50.28110000057495
+          }
+        }
+      ],
+      "marker_ids": []
+    },
+    {
+      "file": "markerless_camera_exposure_20261116_215747_773650\\darker_1_3.png",
+      "sha256": "f9e116621a44d4f72b1ddd0aca9c278958e36dd7a9d42f4dd3309c9200276877",
+      "stage": "darker_1",
+      "exposure": -6.0,
+      "features": [
+        {
+          "region": "upper",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 13.483099999575643
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 41.78150000007008
+          }
+        },
+        {
+          "region": "front",
+          "before": {
+            "accepted": false,
+            "reason": "Need seven image-supported stickers on a3x3 face grid inside the OBB",
+            "processing_ms": 6.2862999984645285
+          },
+          "after": {
+            "accepted": true,
+            "corners_px": [
+              [
+                275.0793681154505,
+                380.295566114764
+              ],
+              [
+                532.6831090431443,
+                413.763436211202
+              ],
+              [
+                561.8249932218675,
+                544.433318789483
+              ],
+              [
+                349.7917546842535,
+                513.8459328675456
+              ]
+            ],
+            "processing_ms": 31.578000001900364
+          }
+        }
+      ],
+      "marker_ids": []
+    },
+    {
+      "file": "markerless_camera_exposure_20261116_215747_773650\\darker_2_1.png",
+      "sha256": "eb6bdbbf68ac724c38ef9daa46f81eef54780f5e816031b302c2a597583f9c6f",
+      "stage": "darker_2",
+      "exposure": -7.0,
+      "features": [
+        {
+          "region": "upper",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 14.220600001863204
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 48.57290000290959
+          }
+        },
+        {
+          "region": "front",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 23.117299999285024
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 44.693600000755396
+          }
+        }
+      ],
+      "marker_ids": []
+    },
+    {
+      "file": "markerless_camera_exposure_20261116_215747_773650\\darker_2_2.png",
+      "sha256": "14988251329be659e80087780aec5f3d4951fba5d45039043ab077536ced608c",
+      "stage": "darker_2",
+      "exposure": -7.0,
+      "features": [
+        {
+          "region": "upper",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 23.76390000063111
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 52.06470000121044
+          }
+        },
+        {
+          "region": "front",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 10.172999998758314
+          },
+          "after": {
+            "accepted": true,
+            "corners_px": [
+              [
+                277.2784238820581,
+                382.92203447441165
+              ],
+              [
+                523.3661257727645,
+                408.6340790450852
+              ],
+              [
+                568.7411567988366,
+                544.6322994345878
+              ],
+              [
+                342.3998728151225,
+                524.7923367591789
+              ]
+            ],
+            "processing_ms": 33.42440000051283
+          }
+        }
+      ],
+      "marker_ids": []
+    },
+    {
+      "file": "markerless_camera_exposure_20261116_215747_773650\\darker_2_3.png",
+      "sha256": "40f565b63a5123a28eec54babc1e6f0a9b32263b6a10895c44372002ecda3de5",
+      "stage": "darker_2",
+      "exposure": -7.0,
+      "features": [
+        {
+          "region": "upper",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 27.835100001539104
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 58.460599997488316
+          }
+        },
+        {
+          "region": "front",
+          "before": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 16.174700002011377
+          },
+          "after": {
+            "accepted": false,
+            "reason": "Sticker centers do not fit a perspective3x3 face grid",
+            "processing_ms": 66.74840000050608
+          }
+        }
+      ],
+      "marker_ids": []
+    }
+  ],
+  "roi_source": "Manual coarse image-specific OBB search regions; not YOLO or surveyed corners",
+  "six_face_reference_available": false,
+  "policy_pose_ready": false,
+  "physical_pose_verified": false,
+  "motor_commands_sent": 0
+}

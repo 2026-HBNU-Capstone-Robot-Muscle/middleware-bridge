@@ -1,0 +1,29 @@
+{
+  "image": "final_grip_pose_20261116_160804_734562\\camera\\frame_00000.jpg",
+  "image_sha256": "bc70da9e256ba58839fa1f516339c7ca0fe7d9392604a67470d7f9b7a7598978",
+  "calibration": "camera1_720.npz",
+  "calibration_sha256": "86c1f866ae6505c1352d4e9d681d803476c513b12e3c5ab79739c1526ada1f92",
+  "resolution": [
+    1280,
+    720
+  ],
+  "roi_source": "Manual coarse search ROIs for saved-image feature diagnostics. Not YOLO results or surveyed face corners.",
+  "features": [
+    {
+      "index": 0,
+      "accepted": false,
+      "reason": "Sticker centers do not fit a perspective3x3 face grid"
+    },
+    {
+      "index": 1,
+      "accepted": false,
+      "reason": "Sticker centers do not fit a perspective3x3 face grid"
+    }
+  ],
+  "camera_binding_verified": false,
+  "physical_pose_verified": false,
+  "policy_pose_ready": false,
+  "devices_opened": false,
+  "pose_estimated": false,
+  "pose_rejection": "No accepted six-face color reference; image features only"
+}
