@@ -78,6 +78,8 @@ pixi run list-packages
 pixi run build-windows
 ```
 
+Windows 빌드 래퍼는 활성 Pixi 환경의 `python.exe`를 CMake의 `Python3_EXECUTABLE`, `Python_EXECUTABLE`, `PYTHON_EXECUTABLE`로 지정합니다. 따라서 시스템 또는 MSYS2 Python이 ROS 인터페이스 생성에 선택되지 않으며, 실행 때 사용하는 Pixi Python과 빌드 인터프리터가 일치합니다.
+
 ## rosbridge 실행
 
 저장소 루트에서 실행합니다.
