@@ -102,7 +102,7 @@ function recordEvent(type, message) {
   if (body.querySelector('.event-empty')) body.replaceChildren();
   body.prepend(row);
   while (body.children.length > 100) body.lastElementChild.remove();
-  $('#event-count').textContent = `${events.length} EVENTS`;
+  $('#event-count').textContent = `${events.length}건`;
 }
 
 function setConnection(state, label, detail) {
@@ -388,7 +388,7 @@ function receiveSolution(solution) {
   $('#solution-signal-detail').textContent = `${topicSignals.solution.count}건 · ${formatAge(Date.now() - topicSignals.solution.at)}`;
   $('#scan-id').textContent = solution.scan_id;
   $('#facelets').textContent = solution.facelets;
-  $('#move-count').textContent = `${solution.moves.length} moves`;
+  $('#move-count').textContent = `${solution.moves.length}회`;
   renderMoveList();
   $('#preview-mode-label').textContent = 'ROS 피드백 동기화';
   recordEvent('풀이 수신', `scan_id ${solution.scan_id} · ${solution.moves.length}개 이동`);
@@ -1016,9 +1016,7 @@ function drawFrame(now = performance.now()) {
   if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) { canvas.width = pixelWidth; canvas.height = pixelHeight; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const width = bounds.width; const height = bounds.height;
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, '#111923'); gradient.addColorStop(1, '#10161e');
-  ctx.fillStyle = gradient; ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#252722'; ctx.fillRect(0, 0, width, height);
 
   const shapes = [];
   let animationAngle = 0;
@@ -1052,13 +1050,12 @@ function drawFrame(now = performance.now()) {
   }
   shapes.sort((a, b) => a.depth - b.depth);
   for (const shape of shapes) {
-    drawPolygon(shape.tile, '#090d12', '#303c49', 1);
-    drawPolygon(shape.front, FACE_COLOR[shape.label] || '#aab5bf', '#0d131a', 2);
+    drawPolygon(shape.tile, '#393b35', '#6e7068', 1);
+    drawPolygon(shape.front, FACE_COLOR[shape.label] || '#aab5bf', '#252722', 1.5);
     const centerX = shape.front.reduce((sum, point) => sum + point.x, 0) / shape.front.length;
     const centerY = shape.front.reduce((sum, point) => sum + point.y, 0) / shape.front.length;
-    const fill = shape.label === 'U' || shape.label === 'D' ? '#202733' : '#f8fafc';
-    ctx.fillStyle = fill;
-    ctx.font = `700 ${Math.max(12, Math.min(18, width * 0.026))}px 'Segoe UI', sans-serif`;
+    ctx.fillStyle = '#253238';
+    ctx.font = `700 ${Math.max(12, Math.min(18, width * 0.026))}px 'Bithumb Gothic', sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(shape.label, centerX, centerY);
   }
@@ -1112,7 +1109,7 @@ $('#execution-mode-toggle').addEventListener('change', (event) => setExecutionMo
 $('#clear-events').addEventListener('click', () => {
   events.length = 0;
   $('#event-list').innerHTML = '<tr class="event-empty"><td colspan="3">아직 기록된 이벤트가 없습니다.</td></tr>';
-  $('#event-count').textContent = '0 EVENTS';
+  $('#event-count').textContent = '0건';
 });
 $('#copy-facelets').addEventListener('click', async () => {
   if (!currentSolution) return;
