@@ -34,5 +34,13 @@ if ($CameraIndex -ge 0) {
 }
 
 Write-Output "ROS 노드 시작: $Package / $Executable"
-& ros2 run $Package $Executable @rosArgs
+$overlayPrefix = Split-Path -Parent $overlaySetup
+$entryScript = Join-Path $overlayPrefix "lib\$Package\$Executable-script.py"
+if (Test-Path -LiteralPath $entryScript -PathType Leaf) {
+    # Use the active Pixi interpreter to bypass the generated Windows launcher.
+    & python -X utf8 $entryScript @rosArgs
+}
+else {
+    & ros2 run $Package $Executable @rosArgs
+}
 exit $LASTEXITCODE
