@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0c1118" />
-    <title>큐브 조작 스테이션</title>
+    <meta name="theme-color" content="#f3f5f6" />
+    <title>Cube Mate</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/cube-mate-icon.svg" />
     <link rel="stylesheet" href="./styles.css" />
     <script type="module" src="./src/main.js"></script>
   </head>
@@ -14,8 +15,8 @@
         <div class="brand-lockup">
           <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
           <div>
-            <p class="eyebrow">MIDDLEWARE BRIDGE <span>·</span> CONTROL DESK</p>
-            <h1>큐브 조작 스테이션</h1>
+            <p class="eyebrow">비전 ROS2 기반 큐브 풀이 프로그램</p>
+            <h1>Cube Mate</h1>
           </div>
         </div>
         <div class="topbar-status">
@@ -33,7 +34,7 @@
 
       <section class="connection-strip panel">
         <div class="connection-title">
-          <span class="icon-orbit" aria-hidden="true">⌁</span>
+          <span class="icon-orbit" aria-hidden="true">ROS</span>
           <div><strong>ROS 브릿지</strong><small id="connection-detail">rosbridge WebSocket 연결 대기 중</small></div>
         </div>
         <form id="connection-form" class="connection-form">
@@ -66,7 +67,7 @@
       <div class="main-grid">
         <section class="visual-panel panel" aria-labelledby="visual-title">
           <div class="panel-heading">
-            <div><p class="section-kicker">SIMULATION VIEW</p><h2 id="visual-title">3D 큐브 시뮬레이션</h2></div>
+            <div><p class="section-kicker">시뮬레이션</p><h2 id="visual-title">3D 큐브</h2></div>
             <label class="toggle-control" for="preview-toggle">
               <span class="toggle-copy"><strong>풀이 미리보기</strong><small id="preview-mode-label">ROS 피드백 동기화</small></span>
               <input id="preview-toggle" type="checkbox" />
@@ -95,7 +96,7 @@
         <div class="side-column">
           <section class="solution-panel panel" aria-labelledby="solution-title">
             <div class="panel-heading compact-heading">
-              <div><p class="section-kicker">CUBE SOLUTION</p><h2 id="solution-title">인식 및 풀이</h2></div>
+              <div><p class="section-kicker">인식 결과</p><h2 id="solution-title">큐브 풀이</h2></div>
               <span id="solution-state" class="small-status" data-state="idle">대기</span>
             </div>
             <div class="scan-meta">
@@ -103,7 +104,7 @@
             </div>
             <div class="facelet-row"><span>FACELETS · URFDLB</span><button id="copy-facelets" class="copy-button" type="button" disabled>복사</button></div>
             <code id="facelets" class="facelets-value">54자 상태를 기다리는 중</code>
-            <div class="moves-heading"><span>풀이 수열</span><span id="move-count" class="move-count">0 moves</span></div>
+            <div class="moves-heading"><span>풀이 수열</span><span id="move-count" class="move-count">0회</span></div>
             <div id="move-list" class="move-list"><span class="placeholder">풀이가 수신되면 이동이 여기에 표시됩니다.</span></div>
             <div class="solution-actions">
               <button id="execute-button" class="button button-primary" type="button" disabled><span>▶</span> <span id="execute-button-label">DRY-RUN 실행</span></button>
@@ -114,7 +115,7 @@
 
           <section class="execution-panel panel" aria-labelledby="execution-title">
             <div class="panel-heading compact-heading">
-              <div><p class="section-kicker">LIVE WORKFLOW</p><h2 id="execution-title">풀이 진행</h2></div>
+              <div><p class="section-kicker">실행 상태</p><h2 id="execution-title">풀이 진행</h2></div>
               <span id="execution-state" class="small-status" data-state="idle">실행 대기</span>
             </div>
             <div class="progress-summary"><strong id="progress-count">0 <span>/ 0</span></strong><span>이동 완료</span></div>
@@ -129,12 +130,12 @@
 
       <section class="events-panel panel" aria-labelledby="events-title">
         <div class="panel-heading compact-heading">
-          <div><p class="section-kicker">BRIDGE ACTIVITY</p><h2 id="events-title">이벤트 기록</h2></div>
-          <div class="event-tools"><span id="event-count">0 EVENTS</span><button id="clear-events" class="text-button" type="button">기록 지우기</button></div>
+          <div><p class="section-kicker">통신 기록</p><h2 id="events-title">이벤트 기록</h2></div>
+          <div class="event-tools"><span id="event-count">0건</span><button id="clear-events" class="text-button" type="button">기록 지우기</button></div>
         </div>
         <div class="event-table-wrap"><table class="event-table"><thead><tr><th>시간</th><th>유형</th><th>이벤트</th></tr></thead><tbody id="event-list"><tr class="event-empty"><td colspan="3">아직 기록된 이벤트가 없습니다.</td></tr></tbody></table></div>
       </section>
-      <footer class="app-footer"><span>middleware-bridge · ROS2 pipeline monitor</span><span>DRY-RUN 환경 · 모터 출력 비활성</span></footer>
+      <footer class="app-footer"><span>ROS 2 · 큐브 조작 시스템</span><span>DRY-RUN · 모터 출력 비활성</span></footer>
     </main>
   </body>
 </html>
