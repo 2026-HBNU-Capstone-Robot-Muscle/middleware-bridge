@@ -1055,7 +1055,7 @@ function drawFrame(now = performance.now()) {
     const centerX = shape.front.reduce((sum, point) => sum + point.x, 0) / shape.front.length;
     const centerY = shape.front.reduce((sum, point) => sum + point.y, 0) / shape.front.length;
     ctx.fillStyle = '#253238';
-    ctx.font = `700 ${Math.max(12, Math.min(18, width * 0.026))}px 'Bithumb Gothic', sans-serif`;
+    ctx.font = `700 ${Math.max(12, Math.min(18, width * 0.026))}px 'Freesentation', sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(shape.label, centerX, centerY);
   }

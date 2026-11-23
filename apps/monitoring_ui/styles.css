@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  font-family: "Bithumb Gothic", "Malgun Gothic", sans-serif;
+  font-family: "Freesentation", "Malgun Gothic", sans-serif;
   font-synthesis: weight;
   text-rendering: optimizeLegibility;
   --bg: #f1f0e9;
@@ -215,13 +215,9 @@ input:focus { border-color: #6b9a93; box-shadow: 0 0 0 3px rgb(40 109 102 / 12%)
   font-display: swap;
 }
 
-/* 일반 설명 문구에만 본문용 서체를 적용하고, 그 외 UI는 빗썸고딕을 씁니다. */
-.connection-title small, .mode-copy small, .signal-card > small,
-.camera-toolbar small, .canvas-empty small, .simulation-note,
-.facelets-value, .placeholder, .dry-run-note, .workflow-stage small,
-.execution-message, .event-empty td, .event-table th, .event-table td {
-  font-family: "Freesentation", "Malgun Gothic", sans-serif;
-}
+/* 메인 제목만 빗썸고딕을 사용하고 항목별 제목을 포함한 나머지 문구는 프리젠테이션으로 통일합니다. */
+body, body * { font-family: "Freesentation", "Malgun Gothic", sans-serif !important; }
+h1 { font-family: "Bithumb Gothic", "Malgun Gothic", sans-serif !important; }
 
 @media (max-width: 1050px) {
   .app-shell { width: min(calc(100% - 32px), 900px); }
