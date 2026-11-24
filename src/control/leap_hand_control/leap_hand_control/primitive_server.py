@@ -66,7 +66,7 @@ class LeapHandPrimitiveServer(Node):
                 or goal.move_index == 0 or goal.step_index == 0
                 or not re.fullmatch(r"[URFDLB](?:2|')?", goal.cube_move)
                 or goal.target_face not in ('U', 'R', 'F', 'D', 'L', 'B')
-                or goal.primitive_id != 'orient_face_up_and_support'
+                or not self._accepts_primitive(goal.primitive_id)
                 or goal.clockwise_quarter_turns != 0):
             result.success = False
             result.error_code = 'INVALID_PRIMITIVE'
@@ -131,23 +131,26 @@ class LeapHandPrimitiveServer(Node):
             return result
 
         if not goal.dry_run:
-            result.success = False
-            if self._policy_adapter is None:
-                result.error_code = 'POLICY_NOT_CONFIGURED'
-                result.error_message = (
-                    'LEAP 정책 어댑터를 준비하지 못했습니다: ' + self._policy_error)
-            else:
-                result.error_code = 'POSE_SOURCE_UNAVAILABLE'
-                result.error_message = (
-                    '정책 추론기는 준비됐지만 108차원 관측을 구성할 큐브 pose와 '
-                    '16개 관절 상태 입력이 연결되지 않았습니다. 모터 명령은 비활성화되어 있습니다.')
-            feedback.state = feedback.STATE_FAILED
-            feedback.message = result.error_message
-            goal_handle.publish_feedback(feedback)
-            goal_handle.abort()
-            return result
+            error = self._physical_request_error(goal)
+            if error is not None:
+                result.success = False
+                result.error_code, result.error_message = error
+                feedback.state = feedback.STATE_FAILED
+                feedback.message = result.error_message
+                goal_handle.publish_feedback(feedback)
+                goal_handle.abort()
+                return result
 
         return await self._execute_validated(goal_handle, result, feedback)
+
+    def _accepts_primitive(self, primitive_id):
+        return primitive_id == 'orient_face_up_and_support'
+
+    def _physical_request_error(self, goal):
+        if self._policy_adapter is None:
+            return 'POLICY_NOT_CONFIGURED', 'LEAP 정책 어댑터를 준비하지 못했습니다: ' + self._policy_error
+        return ('POSE_SOURCE_UNAVAILABLE',
+                '정책 추론기는 준비됐지만 실제 관측·하드웨어 출력이 연결되지 않았습니다.')
 
     async def _execute_validated(self, goal_handle, result, feedback):
         """Overridable adapter hook after the unchanged request validation."""

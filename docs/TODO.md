@@ -20,6 +20,11 @@
 - 어댑터·실행 계약·정책 입력·마커 없는 pose 모듈의 전체 장치 없는 시험103개 통과. 실제 ROS/DDS·모터 출력·양손 통합 검증은 남아 있다.
 - 오른손 저장소의 `hardware/right_hand`에 확정 G, 가로/세로 단독 복귀와 새 가로→G→세로→G 실행파일을 공유한다. 새 연속 파일은 소프트웨어10검사 통과, 연속 실물 성공 미확인이다. [right-hand-status.md](right-hand-status.md)와 각 실행 안내를 확인한다.
 
+### 2026-11-24 오른손 저장 경로 구동 연결
+
+- 별도 opt-in `recorded` backend에 G 준비/가로/세로 직접 액션,완료 뒤 같은 제어기의 G 유지,다음 요청,취소·정지·OFF/설정 복구를 연결했다. 원본267개 해시와 경로·제어기·범위를 보존한다.
+- 자동 목표 면 선택은 아직 연결하지 않았다. 기존 `orient_face_up_and_support`와 GUI 전체 실기 실행 차단을 유지한다. 실제 ROS/모터 시험,면 방향별 경로 선택,상위 지지 heartbeat 감시는 남아 있다. [recorded-motion.md](recorded-motion.md)에 직접 실행법과 검사 범위를 정리했다.
+
 ### 2026-11-17 Custom Hand 실기 작업 현황
 
 - 좌수 저장소 [develop/chu 실기 문서](https://github.com/2026-HBNU-Capstone-Robot-Muscle/left-rl-with-mujoco/blob/develop/chu/docs/primitive_README.md)에 기존 PPO·설정과 단독 실행 방법을 정리했다. 사용자가 `primitive_cli.py`로 파지·회전·해제·초기 복귀를 실기 확인했다고 보고했다.

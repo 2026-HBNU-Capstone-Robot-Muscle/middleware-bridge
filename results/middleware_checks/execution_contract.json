@@ -1,11 +1,14 @@
 {
-  "timestamp_utc": "2026-11-23T23:47:14.114540+00:00",
-  "tests": 103,
+  "timestamp_utc": "2026-11-24T09:46:32.036943+00:00",
+  "tests": 124,
   "failures": 0,
   "errors": 0,
+  "skipped": 0,
   "passed": true,
   "ros_bindings": "stand-ins; real executor control flow and transport wrapper tested",
   "ros_runtime_tested": false,
   "devices_opened": false,
-  "physical_execution_enabled": false
+  "physical_execution_enabled": false,
+  "recorded_backend_opt_in_implemented": true,
+  "recorded_backend_real_motor_tested": false
 }

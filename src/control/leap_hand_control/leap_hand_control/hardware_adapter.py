@@ -102,7 +102,7 @@ class HandAdapter:
     def submit(self, command, future):
         """Queue one orientation operation; refuse overwriting a live support lease."""
         with self.lock:
-            if self.state in ('STARTING', 'FAULT', 'CLOSED'):
+            if self.state in ('STARTING', 'FAULT', 'CLOSED', 'STOPPED'):
                 raise AdapterError('HAND_NOT_READY', self.state)
             if self.job is not None:
                 raise AdapterError('HAND_BUSY', 'A primitive is already active.')
@@ -113,6 +113,9 @@ class HandAdapter:
                 raise AdapterError('READ_ONLY', 'State reader cannot execute motor commands.')
             if self.backend.simulated and not command['dry_run']:
                 raise AdapterError('HARDWARE_DISABLED', 'Simulated backend only accepts dry-run.')
+            validator = getattr(self.backend, 'validate_command', None)
+            if validator is not None:
+                validator(command)
             self.job = dict(command=command.copy(), future=future,
                             started=None, cancel=False)
 
@@ -148,6 +151,8 @@ class HandAdapter:
                 if not self.opened:
                     self.backend.open()
                     self.opened = True
+                if getattr(self.backend, 'asynchronous', False):
+                    now = self.backend.clock()
                 if self.stop_requested:
                     self.backend.stop()
                     self._finish(False, 'CANCELLED', 'Stop requested.')
@@ -155,7 +160,12 @@ class HandAdapter:
                     self.error = ''
                     self.state = 'IDLE'
                     self.stop_requested = False
+                    if getattr(self.backend, 'stopped', False):
+                        self.state, self.sample = 'STOPPED', None
+                        return
                 sample = self.backend.read(now).validate()
+                if getattr(self.backend, 'asynchronous', False):
+                    now = self.backend.clock()
                 if not 0 <= now-sample.acquired_at <= self.max_age:
                     raise AdapterError('STALE_STATE', 'Motor snapshot is stale or future-dated.')
                 self.sample = sample
@@ -170,6 +180,8 @@ class HandAdapter:
                     self.backend.stop()
                     self.identity = None
                     self.state = 'IDLE'
+                    if getattr(self.backend, 'stopped', False):
+                        self.state, self.sample = 'STOPPED', None
                     self._finish(False, 'CANCELLED', 'Backend stop confirmed.')
                     return
                 if job['started'] is None:
@@ -199,8 +211,15 @@ class HandAdapter:
             sample = self.sample
             age = None if sample is None else now-sample.acquired_at
             healthy = age is not None and 0 <= age <= self.max_age and self.state != 'FAULT'
+            supported = healthy and self.state == 'HOLDING'
+            if supported and hasattr(self.backend, 'supporting'):
+                supported = self.backend.supporting(sample)
             return dict(state=self.state, simulated=self.backend.simulated,
-                        healthy=healthy, supporting=healthy and self.state == 'HOLDING',
+                        healthy=healthy, supporting=supported,
+                        support_basis=getattr(self.backend, 'support_basis', 'simulated'),
+                        worker_shutdown_confirmed=getattr(self.backend, 'shutdown_confirmed', False),
+                        all_torque_off_verified=getattr(self.backend, 'all_torque_off_verified', False),
+                        settings_restored=getattr(self.backend, 'settings_restored', False),
                         scan_id=self.identity[0] if self.identity else '',
                         execution_id=self.identity[1] if self.identity else '',
                         move_index=self.identity[2] if self.identity else 0,

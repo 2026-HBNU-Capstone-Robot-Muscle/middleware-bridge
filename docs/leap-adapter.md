@@ -16,8 +16,9 @@
 |---|---|---|
 | `mock` 기본값 | 없음 | 인터페이스 시험용. `simulated=true`, dry-run만 수락 |
 | `read_only` | 지정 포트의 PING/READ만 | 실제16개 위치·목표·전류·전압·온도·토크 읽기. 동작 요청은 READ_ONLY로 거부 |
+| `recorded` 명시적 선택 | 원본 PoseBus의 읽기·제한된 RAM 쓰기 | 별도 활성화와 직접 grip/horizontal/vertical 액션 필요. 완료 후 G 유지. [11/24 안내](recorded-motion.md) |
 
-mock의 HOLDING은 실물 파지가 아니다. read_only는 토크나 목표를 쓰지 않으며 실제 지지력을 판정하지 않는다. 기존 `dry_run=false` 차단도 유지한다.
+mock의 HOLDING은 실물 파지가 아니다. read_only는 토크나 목표를 쓰지 않으며 실제 지지력을 판정하지 않는다. 기본 서버·mock·read_only의 실제 구동 차단은 유지하며,11/24 추가한 recorded 모드의 명시적 세 액션만 별도 구동 경로를 제공한다. 관절 G 도달과 실제 큐브 지지력은 구분한다.
 
 READ-only 통신은 Protocol2.0/1Mbps, ID1–16, 모델1240을 확인한다. 완전한16개 상태만 발행하며 부분 응답은 통째로 폐기한다. Snapshot150ms, 전압3.8–6.5V, 온도45°C 및 기존 측정 전류550mA 중단 기준을 확인한다. 550mA는 설정 전류450mA와 다른 측정 trip 기준이다. 이 reader는 원래 경로 실행기의 통신 코드를 변경하지 않는다.
 
@@ -47,7 +48,7 @@ ROS가 없어도 `python -B scripts/check_execution_contract.py`로 코드 계�
 
 ## 마지막: 아직 남은 것
 
-- 실제 모터 목표 전송 backend는 아직 없다. 새 어댑터는 원래 `.cmd` 경로를 자동 실행하거나 SAC action을 모터 목표로 바꾸지 않는다. 실제 경로 실행기의 승인·범위·2틱/75ms·450mA·PID·완료·중단 계약을 backend로 연결해야 한다.
+- 11/24 recorded backend에 원본 제어 루프와 경로의 실제 목표 전송·G 유지·취소/OFF/복구를 연결했다. 원래 `.cmd`를 자동으로 열지 않으며 SAC 출력도 적용하지 않는다. 코드·가상 모터 시험 완료와 실제 ROS/모터 구동 확인은 별개다. 실행·제한은 [recorded-motion.md](recorded-motion.md)를 따른다.
 - 현재 환경에서는 실제 ROS를 실행하지 못했다. ROS callback, DDS, 설치된 메시지/entry point와 양손 action server 조합은 팀 ROS PC에서 확인한다.
 - 상위 실행기가 지지 heartbeat를 받아 왼손 시작/진행 중 오류로 전파하는 연결은 다음 작업이다. 현재 지지 topic 발행 자체가 그 소비 로직까지 완료했다는 뜻은 아니다.
 - 실제 cube/palm pose, 좌표 변환, 관절 부호·기계 한계와 실물 지지력·윗단 공간 검증은 남아 있다. TODO2 전체를 실물 검증 완료로 표시하지 않는다.

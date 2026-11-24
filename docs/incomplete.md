@@ -2,7 +2,7 @@
 
 ## 현재 상태
 
-실기 코드를 확인해 모터 모델 후보, 참조 포트·속도, motor ID 매핑과 정책 주기를 `hardware-setting.md`에 정리했습니다. 하지만 **middleware의 두 hand action server는 아직 dry-run 전용**이고 실제 motor write path가 없습니다. `dry_run=false` 요청은 계속 거부됩니다. 이번 변경은 하드웨어를 움직이지 않았으며, 실물 구동 준비 정보와 차단 사유를 정리한 단계입니다.
+기본 양손 서버와 상위 실행기는 dry-run을 유지합니다.11/24 별도 `recorded` 오른손 backend에 원본 경로의 실제 구동 연결 코드를 추가했습니다. 명시적 활성화 후 G/가로/세로 직접 액션만 처리하며,목표 면 자동 선택·기존 GUI 전체 실기 실행은 계속 차단합니다. [recorded-motion.md](recorded-motion.md)에 코드·가상 모터 검사와 남은 실제 ROS/실물 검증을 구분했습니다. 이번 작업에서 실제 장치를 움직이지 않았습니다.
 
 ## 2026-11-16 추가로 확보한 오른손 기록
 
@@ -25,7 +25,7 @@
 | P0 | LEAP 실제 정책 입력 | 참조 `policy_runner.py`는 `--cams`를 요구하고 손 관절 측정, cube quaternion·palm 위치로 108차원 관측을 만듦. 무카메라 상태는 명령에 쓰지 말라고 코드에 명시 | 카메라/pose provider를 고르고 middleware 입력 토픽과 관측 이름·순서·단위·timestamp를 연결한 뒤 실측 shadow 비교 |
 | P0 | Custom 정책 실측 observation | 좌수 CLI에서 모터 위치·속도를 정책 입력 8개로 변환하고 정책 출력 4개를 위치 명령으로 사용 | 통합 환경에서 변환 순서·부호·단위와 실측 입력을 대조하고, 참조 모델과 middleware shadow 결과를 비교한다 |
 | P0 | 정책 실행주기와 primitive 의미 | 원본 LEAP 정책50ms, 현재 오른손 저장 경로 재생75ms/최대2틱, Custom 기본30ms | backend별 주기·관측 이력·목표 의미를 분리. 도달 응답 이후 오른손 지지가 계속되도록 수명·완료/취소/timeout 규약을 결정 |
-| P0 | Middleware motor driver | 현재 action servers는 validation 후 dry-run 결과를 반환. `pixi.toml` 및 ROS package manifests는 Dynamixel SDK, pyserial, Feetech SDK를 직접 의존성으로 선언하지 않음 | Windows ROS 환경에서 선택한 driver/SDK를 고정·설치하고 포트 권한·baud·실패 동작을 확인. port별 독립 I/O node, 상태 publisher, command adapter를 구현하고 calibration gate와 연결 |
+| P0 | Middleware motor driver | 오른손 READ-only 및 별도 recorded backend·단일 I/O 소유자·상태 발행을 구현. hardware extra에 SDK4.1.0 고정. 기본 서버/상위 풀이와 왼손은 dry-run | 팀 ROS 환경에서 설치·포트·모터 동작을 확인. 오른손 목표 면 선택/실제 지지 감시,왼손 backend와 전체 calibration 조건 연결은 남음 |
 | P0 | 완료 판정과 handoff | 현재 dry-run 성공은 adapter 응답이며 실물 관절 도달·grasp/support·큐브 회전 확인이 아님 | 관절 추종 오차·정착 시간, 큐브 방향/레이어 회전, LEAP 지지와 Custom grasp/release를 확인할 계측과 기준을 정의하고 실패 시 다음 primitive 차단 |
 | P0 | 안전 정지·기계 한계 | `hardware_calibration.example.json`의 emergency stop, stop behavior, joint/workspace limits, completion feedback, handoff 검증이 모두 false | 독립 비상정지, torque-off/hold 동작, 작업공간·속도·전류 한계, 통신 단절·stale 상태 동작, 큐브 낙하·끼임 대응과 회수 절차를 실제 장치에서 검증·기록 |
 | P1 | Custom 실기 코드와 middleware 모델 실행 호환성 | 현재 실기 ZIP 해시 BE90522E…와 middleware ZIP 해시 5B9A3F36…는 다름 | 실기 모델·설정 해시를 맞추고 Windows ROS 환경의 SB3 로딩, 입출력 좌표 및 기존 shadow 경로 호환성을 검증한다 |

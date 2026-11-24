@@ -17,11 +17,14 @@ def main():
         'tests': result.testsRun,
         'failures': len(result.failures),
         'errors': len(result.errors),
+        'skipped': len(result.skipped),
         'passed': result.wasSuccessful(),
         'ros_bindings': 'stand-ins; real executor control flow and transport wrapper tested',
         'ros_runtime_tested': False,
         'devices_opened': False,
         'physical_execution_enabled': False,
+        'recorded_backend_opt_in_implemented': True,
+        'recorded_backend_real_motor_tested': False,
     }
     folder = root / 'results/middleware_checks'
     folder.mkdir(parents=True, exist_ok=True)

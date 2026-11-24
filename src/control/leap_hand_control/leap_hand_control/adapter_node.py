@@ -23,14 +23,26 @@ class LeapHandAdapterNode(LeapHandPrimitiveServer):
         super().__init__()
         self.declare_parameter('backend_mode', 'mock')
         self.declare_parameter('port', '')
+        self.declare_parameter('recorded_source_root', '')
+        self.declare_parameter('recorded_hardware_enabled', False)
+        self.declare_parameter('recorded_results_dir', 'results/recorded_motion')
         mode = self.get_parameter('backend_mode').value
         if mode == 'mock':
             backend = MockBackend()
         elif mode == 'read_only':
             backend = DynamixelReader(self.get_parameter('port').value)
+        elif mode == 'recorded':
+            from leap_hand_control.recorded_backend import RecordedMotionBackend
+            root = self.get_parameter('recorded_source_root').value.strip()
+            armed = self.get_parameter('recorded_hardware_enabled').value
+            if not root or not isinstance(armed, bool) or not armed:
+                raise ValueError('recorded requires a source root and explicit recorded_hardware_enabled:=true.')
+            backend = RecordedMotionBackend(root, armed=armed,
+                expected_port=self.get_parameter('port').value,
+                results_dir=self.get_parameter('recorded_results_dir').value)
         else:
-            raise ValueError('backend_mode must be mock or read_only.')
-        self._adapter = HandAdapter(backend)
+            raise ValueError('backend_mode must be mock, read_only or recorded.')
+        self._adapter = HandAdapter(backend, command_timeout_s=900. if mode == 'recorded' else 500.)
         self._waiting = None
         self._last_sample_time = None
         self._source_stamp = None
@@ -39,11 +51,32 @@ class LeapHandAdapterNode(LeapHandPrimitiveServer):
         self._status_pub = self.create_publisher(String, '/leap_hand/support_status', 10)
         self._clear_service = self.create_service(
             Trigger, '/leap_hand/clear_mock_support', self._clear_mock_support)
+        self._stop_service = self.create_service(
+            Trigger, '/leap_hand/stop_recorded_motion', self._stop_recorded_motion)
         self._io_timer = self.create_timer(
             .075, self._io_tick, clock=Clock(clock_type=ClockType.STEADY_TIME))
         self.get_logger().info(
             f'LEAP adapter mode={mode}. mock means simulated states/support; '
-            'read_only reads16 real motors and never writes. Do not also run the old primitive server.')
+            'read_only never writes; recorded requires an explicit physical action. '
+            'Do not also run a robot CMD or another serial owner.')
+
+    def _accepts_primitive(self, primitive_id):
+        if getattr(self._adapter.backend, 'recorded_mode', False):
+            from leap_hand_control.recorded_assets import PRIMITIVES
+            return primitive_id in PRIMITIVES or super()._accepts_primitive(primitive_id)
+        return super()._accepts_primitive(primitive_id)
+
+    def _physical_request_error(self, goal):
+        backend = self._adapter.backend
+        if getattr(backend, 'recorded_mode', False) and backend.armed:
+            try:
+                backend.validate_command(dict(primitive_id=goal.primitive_id, dry_run=goal.dry_run,
+                    policy_id=goal.policy_id, policy_action_values=list(goal.policy_action_values),
+                    scan_id=goal.scan_id, execution_id=goal.execution_id, step_index=goal.step_index))
+            except AdapterError as exc:
+                return exc.code, str(exc)
+            return None
+        return super()._physical_request_error(goal)
 
     async def _execute_validated(self, goal_handle, result, feedback):
         goal = goal_handle.request
@@ -121,6 +154,16 @@ class LeapHandAdapterNode(LeapHandPrimitiveServer):
             self._adapter.request_clear()
             response.success = True
             response.message = 'Mock support clear queued for the I/O timer.'
+        return response
+
+    def _stop_recorded_motion(self, request, response):
+        if not getattr(self._adapter.backend, 'recorded_mode', False):
+            response.success = False
+            response.message = 'This service is for the explicit recorded backend only.'
+        else:
+            self._adapter.request_clear()
+            response.success = True
+            response.message = 'Stop queued; wait for status/recorded result to confirm OFF and restoration.'
         return response
 
     def destroy_node(self):
