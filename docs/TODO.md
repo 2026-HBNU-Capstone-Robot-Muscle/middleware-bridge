@@ -23,7 +23,7 @@
 ### 2026-11-24 오른손 저장 경로 구동 연결
 
 - 별도 opt-in `recorded` backend에 G 준비/가로/세로 직접 액션,완료 뒤 같은 제어기의 G 유지,다음 요청,취소·정지·OFF/설정 복구를 연결했다. 원본267개 해시와 경로·제어기·범위를 보존한다.
-- 자동 목표 면 선택은 아직 연결하지 않았다. 기존 `orient_face_up_and_support`와 GUI 전체 실기 실행 차단을 유지한다. 실제 ROS/모터 시험,면 방향별 경로 선택,상위 지지 heartbeat 감시는 남아 있다. [recorded-motion.md](recorded-motion.md)에 직접 실행법과 검사 범위를 정리했다.
+- 11/24 후속: 사용자 색 관찰(초/노/빨→초/주/노→빨/초/노)로 가로 U고정/F→R,세로 R고정/U→F를 등록했다. `orient_face_up_and_support`의 현재 방향→기존 경로 조합 선택과 완료 뒤 논리 상태 갱신을 연결했고144개 계획 및 전체137개 장치 없는 시험을 통과했다. [recorded-orientation.md](recorded-orientation.md)에 근거와 요청법을 정리했다. 실제 ROS/모터 시험,상위의 완료 방향 상태 소비·지지 heartbeat 감시는 남아 있으며 GUI 전체 실기 실행 차단은 유지한다.
 
 ### 2026-11-17 Custom Hand 실기 작업 현황
 

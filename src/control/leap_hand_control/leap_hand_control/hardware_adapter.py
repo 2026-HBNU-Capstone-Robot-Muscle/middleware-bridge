@@ -116,8 +116,13 @@ class HandAdapter:
             validator = getattr(self.backend, 'validate_command', None)
             if validator is not None:
                 validator(command)
+            timeout = self.command_timeout
+            if hasattr(self.backend, 'timeout_for_command'):
+                timeout = self.backend.timeout_for_command(command)
+            if not math.isfinite(timeout) or timeout <= 0:
+                raise AdapterError('INVALID_TIMEOUT', 'Physical request timeout must be finite and positive.')
             self.job = dict(command=command.copy(), future=future,
-                            started=None, cancel=False)
+                            started=None, cancel=False, timeout=timeout)
 
     def cancel(self, future):
         with self.lock:
@@ -190,7 +195,7 @@ class HandAdapter:
                     self.state = 'MOVING'
                     self.identity = (job['command']['scan_id'], job['command']['execution_id'],
                                      job['command']['move_index'])
-                if now-job['started'] > self.command_timeout:
+                if now-job['started'] > job['timeout']:
                     raise AdapterError('HAND_TIMEOUT', 'Primitive exceeded its time budget.')
                 if self.backend.completed(now):
                     self.state = 'HOLDING'
@@ -214,7 +219,7 @@ class HandAdapter:
             supported = healthy and self.state == 'HOLDING'
             if supported and hasattr(self.backend, 'supporting'):
                 supported = self.backend.supporting(sample)
-            return dict(state=self.state, simulated=self.backend.simulated,
+            status = dict(state=self.state, simulated=self.backend.simulated,
                         healthy=healthy, supporting=supported,
                         support_basis=getattr(self.backend, 'support_basis', 'simulated'),
                         worker_shutdown_confirmed=getattr(self.backend, 'shutdown_confirmed', False),
@@ -224,6 +229,9 @@ class HandAdapter:
                         execution_id=self.identity[1] if self.identity else '',
                         move_index=self.identity[2] if self.identity else 0,
                         sample_age_s=age, error=self.error)
+            if hasattr(self.backend, 'orientation_status'):
+                status.update(self.backend.orientation_status())
+            return status
 
     def close(self):
         with self.lock:

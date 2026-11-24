@@ -132,6 +132,73 @@ class SourceReplayTests(unittest.TestCase):
         self.assertTrue(bus.report['all_torque_off_verified'])
         self.assertTrue(bus.report['settings_restored'])
 
+    def test_three_leg_face_route_preserves_all_source_rows_and_only_completes_at_end(self):
+        from leap_hand_control.recorded_runtime import CommandSequence
+        initial = self.make_state(1)
+        initial['position'] = self.assets.grip.copy()
+        initial['goal'] = self.assets.grip.copy()
+        done, goals = [], []
+        pose = self.pose
+        class Bus(self.FakeBus):
+            def write(bus, address, size, values):
+                if address == 116:
+                    self.assertFalse(done)
+                    goals.append((bus.report.get('phase', ''), np.array(values).copy()))
+                super().write(address, size, values)
+        bus, clock = Bus(initial), self.Clock()
+        kinds = ('horizontal', 'horizontal', 'vertical')
+        sequence = CommandSequence(self.assets, pose, self.plan, (1, kinds), Queue(), bus.report, done.append)
+        sequence.bus = bus
+        def cancel():
+            if done:
+                raise pose.OperatorStop()
+        with sequence.runtime_limits(), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(pose.OperatorStop):
+                pose.run_pose(bus, initial, initial['goal'], sequence.rows(initial['goal']),
+                    bus.report, cancel, sequence=sequence, limit=float('inf'),
+                    now=clock.now, sleep=clock.sleep)
+        for i, kind in enumerate(kinds):
+            short = 'h' if kind == 'horizontal' else 'v'
+            actual = np.array([q for phase, q in goals if phase.startswith(f'ros_1_leg_{i}_{short}_')])
+            np.testing.assert_array_equal(actual, self.assets.goals[kind])
+        self.assertEqual(done, [1])
+        self.assertGreater(clock.t, 1200.)
+        joins = [s for s in bus.report['samples'] if s['phase'].startswith('ros_1_join_G_')]
+        self.assertEqual(len(joins), 8)
+        self.assertTrue(all(s['goal'] == self.assets.grip.tolist() for s in joins))
+        self.assertEqual(sum(a == 64 and not np.any(q) for a, q in bus.writes), 1)
+        self.assertTrue(bus.report['all_torque_off_verified'])
+        self.assertTrue(bus.report['settings_restored'])
+
+    def test_intermediate_G_fault_blocks_the_next_route_leg(self):
+        from leap_hand_control.recorded_runtime import CommandSequence
+        initial = self.make_state(1)
+        initial['position'] = self.assets.grip.copy()
+        initial['goal'] = self.assets.grip.copy()
+        goals, done = [], []
+        class Bus(self.FakeBus):
+            def snapshot(bus):
+                state = super().snapshot()
+                if bus.report.get('phase') == 'ros_1_join_G_1' and np.any(state['torque']):
+                    state['current'][0] = 600
+                return state
+            def write(bus, address, size, values):
+                if address == 116:
+                    goals.append(bus.report.get('phase', ''))
+                super().write(address, size, values)
+        bus, clock = Bus(initial), self.Clock()
+        sequence = CommandSequence(self.assets, self.pose, self.plan, (1, ('grip', 'vertical')),
+                                   Queue(), bus.report, done.append)
+        sequence.bus = bus
+        with sequence.runtime_limits(), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, 'measured current'):
+                self.pose.run_pose(bus, initial, initial['goal'], sequence.rows(initial['goal']),
+                    bus.report, lambda: None, sequence=sequence, limit=float('inf'),
+                    now=clock.now, sleep=clock.sleep)
+        self.assertEqual(done, [])
+        self.assertFalse(any(p.startswith('ros_1_leg_1_v_') for p in goals))
+        self.assertTrue(bus.report['all_torque_off_verified'])
+
     def test_motor_snapshot_preserves_source_current_units_and_json_types(self):
         from dataclasses import asdict
         from leap_hand_control.recorded_runtime import motor_sample
@@ -168,7 +235,8 @@ class SourceReplayTests(unittest.TestCase):
         from final_grip_single_instance_20261116 import SingleInstance
         Bus, made = self.runtime_bus_class()
         pending, stop, samples, completed = Queue(), Event(), [], []
-        pending.put((1, 'grip'))
+        # Requested face is already up: prepare G without rotation.
+        pending.put((1, (), {'target_face': 'U', 'face_direction_order': 'URFDLB'}))
         clock, original_loop = self.Clock(), self.pose.run_pose
         runtime = SourceRuntime(self.assets.root, expected_port='VIRTUAL')
         def ready(grip):
@@ -188,6 +256,7 @@ class SourceReplayTests(unittest.TestCase):
         self.assertTrue(runtime.shutdown_confirmed)
         self.assertTrue(made[0].closed)
         self.assertTrue(samples)
+        self.assertEqual(made[0].report['requested_commands'][0]['target_face'], 'U')
         self.assertEqual(sum(a == 64 and np.all(v) for a, v in made[0].writes), 1)
 
     def test_source_runtime_port_mismatch_closes_without_any_write(self):

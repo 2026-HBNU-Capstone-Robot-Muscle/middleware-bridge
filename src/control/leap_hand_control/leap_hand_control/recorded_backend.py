@@ -6,6 +6,8 @@ import time
 
 from leap_hand_control.hardware_adapter import AdapterError, TICK_RAD
 from leap_hand_control.recorded_assets import PRIMITIVES
+from leap_hand_control.recorded_orientation import (
+    FACE_UP_PRIMITIVE, NOMINAL_SECONDS, apply, checked_order, route_to_up)
 
 
 class RecordedMotionBackend:
@@ -34,6 +36,9 @@ class RecordedMotionBackend:
         self.last_request = None
         self.all_torque_off_verified = False
         self.settings_restored = False
+        self.face_order = None
+        self.pending_order = None
+        self.pending_route = ()
 
     def _sample(self, value):
         with self.lock:
@@ -41,6 +46,9 @@ class RecordedMotionBackend:
 
     def _completed(self, token):
         with self.lock:
+            if token != self.token:
+                raise RuntimeError('Recorded completion token differs from the active request.')
+            self.face_order = self.pending_order
             self.completed_token = token
 
     def _ready(self, grip):
@@ -84,9 +92,8 @@ class RecordedMotionBackend:
             raise AdapterError('HAND_NOT_READY', str(self.error))
 
     def validate_command(self, command):
-        if command.get('primitive_id') not in PRIMITIVES:
-            raise AdapterError('ORIENTATION_ROUTE_UNCONFIGURED',
-                               'Use an explicit recorded grip/horizontal/vertical primitive; face-up routes are not calibrated.')
+        if command.get('primitive_id') not in (*PRIMITIVES, FACE_UP_PRIMITIVE):
+            raise AdapterError('INVALID_PRIMITIVE', 'Unknown recorded primitive.')
         if command.get('dry_run', True):
             raise AdapterError('DRY_RUN_MISMATCH', 'Use mock mode for dry-run; recorded mode accepts explicit physical requests only.')
         if command.get('policy_id') or command.get('policy_action_values'):
@@ -98,6 +105,34 @@ class RecordedMotionBackend:
         key = (command['scan_id'], command['execution_id'], command['step_index'])
         if self.last_request is not None and key[:2] == self.last_request[:2] and key[2] <= self.last_request[2]:
             raise AdapterError('REPLAYED_COMMAND', 'A duplicate or older physical request is not executed again.')
+        self._plan(command)
+
+    def _plan(self, command):
+        if command['primitive_id'] == FACE_UP_PRIMITIVE:
+            order = command.get('face_direction_order', '')
+            if not order:
+                raise AdapterError('ORIENTATION_STATE_REQUIRED', 'Supply current URFDLB slots in the fixed-G hand frame.')
+            try:
+                checked_order(order)
+                target = command.get('target_face', '')
+                index = command.get('target_face_direction_index')
+                if type(index) is not int or not 0 <= index < 6 or order[index] != target:
+                    raise ValueError('Target index does not match the current direction order.')
+                if self.face_order is not None and self.face_order != order:
+                    raise ValueError('Incoming direction order disagrees with the last completed recorded motion.')
+                route, after = route_to_up(order, target)
+                return route, after
+            except ValueError as exc:
+                raise AdapterError('INVALID_FACE_DIRECTION_STATE', str(exc)) from exc
+        kind = PRIMITIVES[command['primitive_id']]
+        # Legacy direct-action face fields remain metadata, never an implicit
+        # initial orientation. Once seeded by a face-up request, track all moves.
+        after = None if self.face_order is None else apply(self.face_order, kind)
+        return (kind,), after
+
+    def timeout_for_command(self, command):
+        route, _ = self._plan(command)
+        return max(900., sum(NOMINAL_SECONDS[k] for k in route)+300.+.3*len(route))
 
     def begin(self, command, now):
         self.validate_command(command)
@@ -105,7 +140,16 @@ class RecordedMotionBackend:
             raise AdapterError('HAND_RESTART_REQUIRED', 'Recorded controller is not running.')
         self.token += 1
         self.last_request = (command['scan_id'], command['execution_id'], command['step_index'])
-        self.requests.put((self.token, PRIMITIVES[command['primitive_id']]))
+        route, self.pending_order = self._plan(command)
+        self.pending_route = route
+        self.face_order = None  # A partially completed rotation has unknown state.
+        payload = route if command['primitive_id'] == FACE_UP_PRIMITIVE else route[0]
+        context = {key: command.get(key) for key in (
+            'scan_id', 'execution_id', 'step_index', 'move_index', 'primitive_id',
+            'target_face', 'face_direction_order', 'target_face_direction_index')}
+        context.update(predicted_face_direction_order=self.pending_order,
+                       route=list(route), orientation_is_sensor_measured=False)
+        self.requests.put((self.token, payload, context))
 
     def read(self, now):
         with self.lock:
@@ -126,6 +170,16 @@ class RecordedMotionBackend:
         return (self.grip is not None and all(sample.torque)
                 and tuple(sample.goals) == self.grip
                 and max(abs(a-b)*TICK_RAD for a, b in zip(sample.positions, self.grip)) <= .12)
+
+    def orientation_status(self):
+        with self.lock:
+            known = self.face_order is not None and self.error is None and not self.stopped
+            return dict(face_direction_order=self.face_order if known else '',
+                        orientation_state_known=known,
+                        orientation_basis='user_reported_quarter_turns_and_completed_joint_paths',
+                        cube_orientation_sensor_verified=False,
+                        planned_recorded_route=list(self.pending_route),
+                        predicted_face_direction_order=self.pending_order or '')
 
     def stop(self):
         self.stop_event.set()

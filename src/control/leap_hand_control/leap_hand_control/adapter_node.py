@@ -72,7 +72,9 @@ class LeapHandAdapterNode(LeapHandPrimitiveServer):
             try:
                 backend.validate_command(dict(primitive_id=goal.primitive_id, dry_run=goal.dry_run,
                     policy_id=goal.policy_id, policy_action_values=list(goal.policy_action_values),
-                    scan_id=goal.scan_id, execution_id=goal.execution_id, step_index=goal.step_index))
+                    scan_id=goal.scan_id, execution_id=goal.execution_id, step_index=goal.step_index,
+                    face_direction_order=goal.face_direction_order, target_face=goal.target_face,
+                    target_face_direction_index=goal.target_face_direction_index))
             except AdapterError as exc:
                 return exc.code, str(exc)
             return None

@@ -58,14 +58,26 @@ class CommandSequence:
         return scoped()
 
     def _append(self, job):
-        token, kind = job
-        goals = self.assets.goals[kind]
-        self.rows_list.extend(q.copy() for q in goals)
-        self.labels.extend(f'ros_{token}_{p}' for p in self.assets.phases[kind])
-        self.legs.extend([kind]*len(goals))
-        self.rows_list.append(self.assets.grip.copy())
-        self.labels.append(f'ros_{token}_final_G_check')
-        self.legs.append('entry')
+        token, payload = job[:2]
+        history = self.report.setdefault('requested_commands', [])
+        if not any(row['token'] == token for row in history):
+            history.append(dict(token=token, **(job[2] if len(job) > 2 else {})))
+        kinds = (payload,) if isinstance(payload, str) else tuple(payload)
+        kinds = kinds or ('grip',)
+        for leg, kind in enumerate(kinds):
+            if leg:
+                # At least three fresh guarded G samples between route legs.
+                self.rows_list.extend(self.assets.grip.copy() for _ in range(4))
+                self.labels.extend([f'ros_{token}_join_G_{leg}']*4)
+                self.legs.extend(['entry']*4)
+            goals = self.assets.goals[kind]
+            prefix = f'ros_{token}_' if len(kinds) == 1 else f'ros_{token}_leg_{leg}_'
+            self.rows_list.extend(q.copy() for q in goals)
+            self.labels.extend(prefix+str(p) for p in self.assets.phases[kind])
+            self.legs.extend([kind]*len(goals))
+            self.rows_list.append(self.assets.grip.copy())
+            self.labels.append(prefix+'final_G_check')
+            self.legs.append('entry')
         self.active = job
         self.confirmed, self.previous_state = 0, None
         self.report['planned_goals'] = len(self.rows_list)

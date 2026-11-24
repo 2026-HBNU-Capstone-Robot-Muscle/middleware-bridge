@@ -131,7 +131,7 @@ class BackendTests(unittest.TestCase):
         self.assertFalse(self.backend.thread.is_alive())
         self.assertTrue(self.backend.shutdown_confirmed)
 
-    def test_uncalibrated_face_up_shadow_and_dryrun_are_rejected_before_job(self):
+    def test_missing_orientation_shadow_and_dryrun_are_rejected_before_job(self):
         core = self.ready()
         for changes in ({'primitive_id': 'orient_face_up_and_support'},
                         {'policy_id': 'leap_faceup_v1', 'policy_action_values': [0.]*16},

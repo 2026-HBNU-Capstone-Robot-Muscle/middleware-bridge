@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 import numpy as np
+from leap_hand_control.recorded_orientation import FACE_UP_PRIMITIVE
 
 MANIFEST_PATH = 'right_hand_rotation_20261124/two_axis_cycle/operator_trial_manifest.json'
 MANIFEST_SHA256 = 'a4f3c93ca9c606e3874203dabc61c0e9b3e3cc61ff4bcca52d5e4d3543f1498e'
@@ -97,6 +98,8 @@ class RecordedAssets:
         return dict(source_commit=SOURCE_COMMIT, source_root=str(self.root),
                     source_hashes_verified=len(self.manifest['source_hashes']),
                     candidate_sha256=self.manifest['candidate_sha256'],
-                    primitive_ids=list(PRIMITIVES), devices_opened=False,
+                    primitive_ids=[*PRIMITIVES, FACE_UP_PRIMITIVE], devices_opened=False,
                     historical_import_hashes_verified=len(LEGACY_IMPORT_HASHES),
-                    arbitrary_face_orientation_mapping_available=False)
+                    arbitrary_face_orientation_mapping_available=True,
+                    direction_mapping_basis='user_color_observations_20261124',
+                    actual_ROS_direction_routing_tested=False)
