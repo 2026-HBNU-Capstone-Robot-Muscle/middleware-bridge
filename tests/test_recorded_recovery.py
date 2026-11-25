@@ -48,6 +48,33 @@ class Backend:
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_complete_but_late_read_marks_fixed_pause_and_restores_hooks(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from leap_hand_control.recorded_recovery import recovery_sampling
+        tracker = CommunicationRecovery()
+        observed = []
+        calibrated = SimpleNamespace(sample=lambda *args,**kwargs:None)
+        pose = SimpleNamespace(OperatorStop=type('OperatorStop',(Exception,),{}))
+        controller = SimpleNamespace(FAST_SAMPLE=calibrated.sample)
+        original = calibrated.sample
+        marker = object()
+        def resume(*args, **kwargs):
+            status = tracker.status(time.monotonic())
+            self.assertTrue(status['active'])
+            self.assertAlmostEqual(status['deadline']-status['started_at'],10.2)
+            return marker, []
+        controller.resume_health = resume
+        controller.sample = lambda *args,**kwargs:controller.resume_health(*args,**kwargs)
+        with patch.dict(sys.modules,{'calibrated_two_full_health_20261028':calibrated,
+                                     'leap_measured_grip_hold_20261117':pose}):
+            with recovery_sampling(controller, tracker, lambda bus,value:observed.append(value)):
+                self.assertIs(calibrated.sample(None,None,{},'late_read')[0],marker)
+                self.assertFalse(tracker.status(time.monotonic())['active'])
+        self.assertEqual(observed,[marker])
+        self.assertIs(calibrated.sample,original)
+        self.assertIs(controller.resume_health,resume)
+
     def moving(self, *, timeout=500.):
         self.backend = Backend()
         self.adapter = HandAdapter(self.backend, command_timeout_s=timeout)
@@ -64,7 +91,7 @@ class RecoveryTests(unittest.TestCase):
         tracker = CommunicationRecovery()
         tracker.missing(10.)
         tracker.missing(10.8)
-        self.assertAlmostEqual(tracker.status(10.9)['deadline'], 11.2)
+        self.assertAlmostEqual(tracker.status(10.9)['deadline'], 20.2)
         tracker.reading(10.9)
         self.assertAlmostEqual(tracker.status(10.91)['read_deadline'], 11.1)
         tracker.read_finished()

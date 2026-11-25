@@ -1,9 +1,10 @@
 """Bounded READ wait visibility; never replace telemetry with fresh timestamps."""
 from contextlib import contextmanager
 from threading import RLock
+import time
 
 
-MAXIMUM_COMMUNICATION_WAIT_S = 1.2  # Original200ms plus the separate1s pause.
+MAXIMUM_COMMUNICATION_WAIT_S = 10.2  # Original200ms plus the separate10s pause.
 
 
 class CommunicationRecovery:
@@ -58,6 +59,13 @@ def recovery_sampling(controller, tracker, validated):
     original = calibrated.sample
     if original is not controller.FAST_SAMPLE:
         raise RuntimeError('Unexpected recorded sampler override; no motion.')
+    original_resume = getattr(controller, 'resume_health', None)
+
+    def resume(*args, **kwargs):
+        # A complete-but-late read may have no failed packet. Explicitly mark
+        # its bounded pause without replacing any telemetry timestamp.
+        tracker.missing(time.monotonic())
+        return original_resume(*args, **kwargs)
 
     def sample(bus, command, report, phase, **kwargs):
         try:
@@ -72,7 +80,11 @@ def recovery_sampling(controller, tracker, validated):
             raise
 
     calibrated.sample = sample
+    if original_resume is not None:
+        controller.resume_health = resume
     try:
         yield
     finally:
         calibrated.sample = original
+        if original_resume is not None:
+            controller.resume_health = original_resume

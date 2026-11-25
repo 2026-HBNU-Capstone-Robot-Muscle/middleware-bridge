@@ -9,13 +9,14 @@ import sys
 import numpy as np
 from leap_hand_control.recorded_orientation import FACE_UP_PRIMITIVE
 
-MANIFEST_PATH = 'right_hand_rotation_20261124/two_axis_cycle/operator_trial_manifest.json'
-MANIFEST_SHA256 = 'a4f3c93ca9c606e3874203dabc61c0e9b3e3cc61ff4bcca52d5e4d3543f1498e'
-SOURCE_COMMIT = '28e495c34628e6074f6faa0a5c3038d4e8ef8d61'
+MANIFEST_PATH = 'right_hand_rotation_20261125/middleware_current_rotation/manifest.json'
+MANIFEST_SHA256 = 'e737b925e68ef76df6728b2d19dbe48ad384e8cfed7abdb51f80a4d767827c6e'
+SOURCE_COMMIT = '281849f23d56bbc2e6ead836ec847a041bf9b678'
 RECOVERY_SOURCE_HASHES = {
     'grip_transport_recovery_20261125.py': '208e5f378d12f7416550d14fdbdfbec927833fb8865a8c8eeec0b8ea0e3f7871',
     'serial_error_observer_20261125.py': '94d87dc9747b261c6f45584276b9030409ba8d52dab8fc6918256910646f18c1',
     'grip_pause_resume_20261125.py': 'a1d445cc8457cb0a324215c2b852f7b7984fa97069a6ff3583542885213c3dfa',
+    'grip_pause_resume_10s_trial_20261125.py': '93433e0bfadc5f147721d3e943a7b9e3457d071475d853dca4be0df8248b9e02',
 }
 LEGACY_IMPORT_HASHES = {
     'leap_hw': 'bcac41f9ab95a406c3ad571a84c7bdb4a98ff44f420759f204b266b627c452eb',
@@ -42,7 +43,7 @@ class RecordedAssets:
                 raise ValueError('Historical import hash mismatch: '+name)
         manifest_path = self.root / MANIFEST_PATH
         if sha(manifest_path) != MANIFEST_SHA256:
-            raise ValueError('Recorded manifest differs from the pinned11/24 source version.')
+            raise ValueError('Recorded manifest differs from the pinned current11/25 source version.')
         self.manifest = json.loads(manifest_path.read_bytes())
         for name, expected in self.manifest['source_hashes'].items():
             path = (self.root / name).resolve(strict=True)
@@ -105,7 +106,7 @@ class RecordedAssets:
 
     def recovery_controller(self):
         self.import_controller()
-        return importlib.import_module('grip_pause_resume_20261125')
+        return importlib.import_module('grip_pause_resume_10s_trial_20261125')
 
     def summary(self):
         return dict(source_commit=SOURCE_COMMIT, source_root=str(self.root),
@@ -114,7 +115,9 @@ class RecordedAssets:
                     primitive_ids=[*PRIMITIVES, FACE_UP_PRIMITIVE], devices_opened=False,
                     historical_import_hashes_verified=len(LEGACY_IMPORT_HASHES),
                     communication_recovery_sources_verified=len(RECOVERY_SOURCE_HASHES),
-                    communication_recovery_maximum_extra_pause_s=1.,
+                    communication_recovery_maximum_extra_pause_s=10.,
+                    index_then_middle_per_final_stage=True,
+                    maximum_motion_step_ticks=2,
                     arbitrary_face_orientation_mapping_available=True,
                     direction_mapping_basis='user_color_observations_20261124',
                     actual_ROS_direction_routing_tested=False)
