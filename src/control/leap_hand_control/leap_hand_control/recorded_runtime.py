@@ -9,6 +9,7 @@ import numpy as np
 
 from leap_hand_control.hardware_adapter import HandSample, TICK_RAD
 from leap_hand_control.recorded_assets import RecordedAssets
+from leap_hand_control.recorded_recovery import CommunicationRecovery, recovery_sampling
 
 
 def motor_sample(state, acquired_at):
@@ -164,9 +165,14 @@ class SourceRuntime:
         self.shutdown_confirmed = False
         self.all_torque_off_verified = False
         self.settings_restored = False
+        self.communication = CommunicationRecovery()
+
+    def communication_status(self, now):
+        return self.communication.status(now)
 
     def run(self, stop, requests, sample, completed, ready):
         pose, plan = self.assets.import_controller()
+        recovery = self.assets.recovery_controller()
         from final_grip_single_instance_20261116 import SingleInstance
         report = dict(status='starting', holding=False, all_torque_off_verified=False,
                       settings_restored=False, source_commit=self.assets.summary()['source_commit'])
@@ -180,12 +186,44 @@ class SourceRuntime:
             if stop.is_set():
                 raise pose.OperatorStop()
 
-        class ObservedBus(pose.PoseBus):
+        tracker = self.communication
+
+        class ObservedBus(recovery.PauseBus):
+            _last_full_read = None
+
+            def _motion_operation(self):
+                began = time.monotonic()
+                admitted = ('accepted_start_goal' in report and not self._shutdown_started)
+                if admitted:
+                    tracker.reading(began)
+                try:
+                    result = super()._motion_operation()
+                    state, comm, error, _ = result
+                    if admitted and comm in (-3001, -3002) and not error:
+                        tracker.missing(began)
+                    if not comm and not error:
+                        self._last_full_read = state, began
+                    return result
+                finally:
+                    if admitted:
+                        tracker.read_finished()
+
             def snapshot(self):
                 began = time.monotonic()
                 state = super().snapshot()
-                sample(motor_sample(state, began))
+                latest = self._last_full_read
+                acquired = latest[1] if latest is not None and latest[0] is state else began
+                self._last_full_read = state, acquired
+                sample(motor_sample(state, acquired))
                 return state
+
+        def validated(bus, state):
+            latest = bus._last_full_read
+            if latest is None or latest[0] is not state:
+                raise RuntimeError('No acquisition timestamp for recovered full motor state.')
+            # Pause probes bypass snapshot(); publish their newly measured
+            # final state with the actual acquisition time, never "now".
+            sample(motor_sample(state, latest[1]))
 
         failure = None
         try:
@@ -207,7 +245,7 @@ class SourceRuntime:
                 initial, start, _ = pose.preflight(bus, report, self.assets.grip)
                 sequence = CommandSequence(self.assets, pose, plan, first, requests, report, completed)
                 sequence.bus = bus
-                with sequence.runtime_limits():
+                with sequence.runtime_limits(), recovery_sampling(recovery, tracker, validated):
                     pose.run_pose(bus, initial, start, sequence.rows(start), report, cancel,
                                   sequence=sequence, limit=float('inf'))
         except pose.OperatorStop:
@@ -216,6 +254,7 @@ class SourceRuntime:
             failure = exc
             report.update(status='fault', error=str(exc))
         finally:
+            tracker.finish()
             if bus is not None:
                 bus.close()
             self.shutdown_confirmed = (bus is None or not bus.controlled or bool(

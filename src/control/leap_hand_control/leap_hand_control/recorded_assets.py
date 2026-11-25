@@ -12,6 +12,11 @@ from leap_hand_control.recorded_orientation import FACE_UP_PRIMITIVE
 MANIFEST_PATH = 'right_hand_rotation_20261124/two_axis_cycle/operator_trial_manifest.json'
 MANIFEST_SHA256 = 'a4f3c93ca9c606e3874203dabc61c0e9b3e3cc61ff4bcca52d5e4d3543f1498e'
 SOURCE_COMMIT = '28e495c34628e6074f6faa0a5c3038d4e8ef8d61'
+RECOVERY_SOURCE_HASHES = {
+    'grip_transport_recovery_20261125.py': '208e5f378d12f7416550d14fdbdfbec927833fb8865a8c8eeec0b8ea0e3f7871',
+    'serial_error_observer_20261125.py': '94d87dc9747b261c6f45584276b9030409ba8d52dab8fc6918256910646f18c1',
+    'grip_pause_resume_20261125.py': 'a1d445cc8457cb0a324215c2b852f7b7984fa97069a6ff3583542885213c3dfa',
+}
 LEGACY_IMPORT_HASHES = {
     'leap_hw': 'bcac41f9ab95a406c3ad571a84c7bdb4a98ff44f420759f204b266b627c452eb',
     'limits': '4852b466d90023519fc941622ae31e20457bad8518dbb201abb934232d685299',
@@ -44,6 +49,9 @@ class RecordedAssets:
             path.relative_to(self.root)
             if sha(path) != expected:
                 raise ValueError('Recorded source hash mismatch: ' + name)
+        for name, expected in RECOVERY_SOURCE_HASHES.items():
+            if sha(self.root/name) != expected:
+                raise ValueError('Recorded communication recovery source hash mismatch: '+name)
         path = manifest_path.parent / 'candidate.npz'
         if sha(path) != self.manifest['candidate_sha256']:
             raise ValueError('Recorded candidate hash mismatch.')
@@ -62,7 +70,8 @@ class RecordedAssets:
 
     def import_controller(self):
         # Prevent an already imported copy from redirecting ROOT-bound assets.
-        for name in ('leap_measured_grip_hold_20261117', 'two_axis_cycle_plan_20261124'):
+        for name in ('leap_measured_grip_hold_20261117', 'two_axis_cycle_plan_20261124',
+                     *(Path(name).stem for name in RECOVERY_SOURCE_HASHES)):
             loaded = sys.modules.get(name)
             if loaded is not None and Path(loaded.__file__).resolve().parent != self.root:
                 raise RuntimeError('Another recorded source tree is already imported; restart the node.')
@@ -94,12 +103,18 @@ class RecordedAssets:
         pose.validate_sources()
         return pose, plan
 
+    def recovery_controller(self):
+        self.import_controller()
+        return importlib.import_module('grip_pause_resume_20261125')
+
     def summary(self):
         return dict(source_commit=SOURCE_COMMIT, source_root=str(self.root),
                     source_hashes_verified=len(self.manifest['source_hashes']),
                     candidate_sha256=self.manifest['candidate_sha256'],
                     primitive_ids=[*PRIMITIVES, FACE_UP_PRIMITIVE], devices_opened=False,
                     historical_import_hashes_verified=len(LEGACY_IMPORT_HASHES),
+                    communication_recovery_sources_verified=len(RECOVERY_SOURCE_HASHES),
+                    communication_recovery_maximum_extra_pause_s=1.,
                     arbitrary_face_orientation_mapping_available=True,
                     direction_mapping_basis='user_color_observations_20261124',
                     actual_ROS_direction_routing_tested=False)

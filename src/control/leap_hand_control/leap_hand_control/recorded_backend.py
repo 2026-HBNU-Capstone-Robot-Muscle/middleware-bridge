@@ -27,6 +27,7 @@ class RecordedMotionBackend:
         self.requests, self.samples = Queue(), deque(maxlen=8)
         self.stop_event, self.ready_event = Event(), Event()
         self.thread = None
+        self.runtime = None
         self.error = None
         self.grip = None
         self.token = 0
@@ -64,6 +65,8 @@ class RecordedMotionBackend:
                                         results_dir=self.results_dir)
             else:
                 runtime = self.factory()
+            with self.lock:
+                self.runtime = runtime
             runtime.run(self.stop_event, self.requests, self._sample, self._completed, self._ready)
             if not self.stop_event.is_set():
                 raise RuntimeError('Recorded controller exited unexpectedly.')
@@ -165,6 +168,17 @@ class RecordedMotionBackend:
             if self.error is not None:
                 raise AdapterError('HAND_FAULT', str(self.error))
             return self.token > 0 and self.completed_token == self.token
+
+    def communication_status(self, now):
+        with self.lock:
+            if self.error is not None:
+                raise AdapterError('HAND_FAULT', str(self.error))
+            runtime = self.runtime
+        getter = getattr(runtime, 'communication_status', None)
+        status = getter(now) if getter is not None else dict(active=False, read_in_progress=False)
+        if status.get('error'):
+            raise AdapterError('HAND_FAULT', status['error'])
+        return status
 
     def supporting(self, sample):
         return (self.grip is not None and all(sample.torque)

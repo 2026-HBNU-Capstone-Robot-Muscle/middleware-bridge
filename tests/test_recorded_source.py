@@ -41,6 +41,15 @@ class SourceReplayTests(unittest.TestCase):
         from test_measured_grip_hold_20261117 import FakeBus, Clock, state
         cls.FakeBus, cls.Clock, cls.make_state = FakeBus, Clock, staticmethod(state)
 
+    def test_changed_recovery_pin_is_rejected_before_controller_import(self):
+        from leap_hand_control.recorded_assets import RECOVERY_SOURCE_HASHES
+        first = next(iter(RECOVERY_SOURCE_HASHES))
+        with patch.dict(RECOVERY_SOURCE_HASHES, {first:'0'*64}), \
+                patch('leap_hand_control.recorded_assets.importlib.import_module') as loader:
+            with self.assertRaisesRegex(ValueError, 'communication recovery source hash'):
+                RecordedAssets(self.assets.root)
+            loader.assert_not_called()
+
     def test_actual_H_then_V_arrays_one_enable_no_OFF_at_completion(self):
         from leap_hand_control.recorded_runtime import CommandSequence
         initial = self.make_state(0)
@@ -248,7 +257,10 @@ class SourceReplayTests(unittest.TestCase):
             stop.set()
         def loop(*args, **kwargs):
             return original_loop(*args, **kwargs, now=clock.now, sleep=clock.sleep)
-        with patch.object(self.pose, 'PoseBus', Bus), patch.object(self.pose, 'run_pose', loop), \
+        import calibrated_two_full_health_20261028 as calibrated
+        recovery = NS(PauseBus=Bus, FAST_SAMPLE=calibrated.sample, sample=calibrated.sample)
+        with patch.object(runtime.assets, 'recovery_controller', return_value=recovery), \
+                patch.object(self.pose, 'run_pose', loop), \
                 patch('final_grip_single_instance_20261116.SingleInstance', return_value=contextlib.nullcontext()), \
                 contextlib.redirect_stdout(io.StringIO()):
             runtime.run(stop, pending, samples.append, done, ready)
@@ -263,13 +275,109 @@ class SourceReplayTests(unittest.TestCase):
         from leap_hand_control.recorded_runtime import SourceRuntime
         Bus, made = self.runtime_bus_class()
         runtime = SourceRuntime(self.assets.root, expected_port='OTHER_PORT')
-        with patch.object(self.pose, 'PoseBus', Bus), \
+        import calibrated_two_full_health_20261028 as calibrated
+        recovery = NS(PauseBus=Bus, FAST_SAMPLE=calibrated.sample, sample=calibrated.sample)
+        with patch.object(runtime.assets, 'recovery_controller', return_value=recovery), \
                 patch('final_grip_single_instance_20261116.SingleInstance', return_value=contextlib.nullcontext()):
             with self.assertRaisesRegex(RuntimeError, 'port differs'):
                 runtime.run(Event(), Queue(), lambda _: None, lambda _: None, lambda _: None)
         self.assertTrue(made[0].closed)
         self.assertEqual(made[0].writes, [])
         self.assertTrue(runtime.shutdown_confirmed)
+
+    def test_all_recorded_commands_use_same_goal_recovery_without_replaying_rows(self):
+        from leap_hand_control.recorded_runtime import SourceRuntime
+        import time
+        controller = self.assets.recovery_controller()
+        initial = self.make_state(0)
+        initial['position'] = self.assets.grip.copy()
+        initial['goal'] = self.assets.grip.copy()
+        runtime = SourceRuntime(self.assets.root, expected_port='VIRTUAL')
+        native = controller.PauseBus
+        made, goals, injected = [], [], set()
+        fake = self.FakeBus
+
+        class Bus(native):
+            def __init__(bus, report, cancel):
+                bus.__dict__.update(fake(initial).__dict__)
+                bus.report, bus.cancel_callback = report, cancel
+                bus.controlled = bus._motion_paused = bus._shutdown_started = False
+                bus._using_unicast = bus.read_only = False
+                bus.closed = False
+                bus.packet = NS(ping=lambda port, motor:(1240, 0, 0))
+                bus.port = object()
+                report['port'] = 'VIRTUAL'
+                made.append(bus)
+
+            def read(bus, motor, address, size=1):
+                return {10:0, 11:5, 20:0, 6:53, 8:3, 38:500}[address]
+
+            def snapshot(bus):
+                phase = bus.report.get('phase', '')
+                key = next((key for prefix, key in (
+                    ('ros_entry_', 'entry'), ('ros_1_G_hold', 'G_hold'),
+                    ('ros_2_h_', 'horizontal'), ('ros_3_v_', 'vertical'),
+                    ('ros_4_leg_1_v_', 'face_route')) if phase.startswith(prefix)), None)
+                if ('accepted_start_goal' in bus.report and np.any(bus.state['torque'])
+                        and key is not None and key not in injected):
+                    injected.add(key)
+                    runtime.communication.missing(time.monotonic())
+                    raise controller.LinkReadFailure('Injected READ failure in '+key)
+                return fake.snapshot(bus)
+
+            def _motion_operation(bus):
+                return fake.snapshot(bus), 0, 0, {}
+
+            def write(bus, address, size, values):
+                if bus._motion_paused:
+                    raise AssertionError('Write occurred during READ-only recovery pause')
+                if address == 116:
+                    goals.append((bus.report.get('phase', ''), np.asarray(values).copy()))
+                return fake.write(bus, address, size, values)
+
+            def off(bus):
+                return fake.off(bus)
+
+            def close(bus):
+                bus.closed = True
+
+        pending, stop, done, samples = Queue(), Event(), [], []
+        jobs = [(1, 'grip'), (2, 'horizontal'), (3, 'vertical'),
+                (4, ('horizontal', 'vertical'), {'primitive_id':'orient_face_up_and_support'})]
+        pending.put(jobs[0])
+
+        def completed(token):
+            done.append(token)
+            if token < len(jobs):
+                pending.put(jobs[token])
+            else:
+                stop.set()
+
+        clock, original_loop = self.Clock(), self.pose.run_pose
+
+        def loop(*args, **kwargs):
+            return original_loop(*args, **kwargs, now=clock.now, sleep=clock.sleep)
+
+        with patch.object(controller, 'PauseBus', Bus), \
+                patch.object(self.pose, 'run_pose', loop), \
+                patch('combined_quiet_reserve_20261029.quiet'), \
+                patch('final_grip_single_instance_20261116.SingleInstance', return_value=contextlib.nullcontext()), \
+                contextlib.redirect_stdout(io.StringIO()):
+            runtime.run(stop, pending, samples.append, completed, lambda grip:None)
+        self.assertEqual(done, [1, 2, 3, 4])
+        self.assertEqual(injected, {'entry', 'G_hold', 'horizontal', 'vertical', 'face_route'})
+        events = made[0].report['communication_pause_events']
+        self.assertEqual(len(events), 5)
+        self.assertTrue(all(e['status']=='resumed' and e['clean_reads']==2 for e in events))
+        self.assertTrue(all(e['completed_goals_before']==e['completed_goals_after'] for e in events))
+        for prefix, kind in (('ros_2_h_', 'horizontal'), ('ros_3_v_', 'vertical'),
+                             ('ros_4_leg_0_h_', 'horizontal'), ('ros_4_leg_1_v_', 'vertical')):
+            actual = np.array([q for phase, q in goals if phase.startswith(prefix)])
+            np.testing.assert_array_equal(actual, self.assets.goals[kind])
+        self.assertTrue(runtime.shutdown_confirmed)
+        self.assertTrue(made[0].closed)
+        self.assertEqual(sum(a==64 and np.all(v) for a, v in made[0].writes), 1)
+        self.assertTrue(all(s.acquired_at <= time.monotonic() for s in samples))
 
 
 if __name__ == '__main__':

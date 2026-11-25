@@ -98,11 +98,12 @@ class HandAdapter:
         self.job = None
         self.error = ''
         self.stop_requested = False
+        self.communication_recovering = False
 
     def submit(self, command, future):
         """Queue one orientation operation; refuse overwriting a live support lease."""
         with self.lock:
-            if self.state in ('STARTING', 'FAULT', 'CLOSED', 'STOPPED'):
+            if self.state in ('STARTING', 'FAULT', 'CLOSED', 'STOPPED') or self.communication_recovering:
                 raise AdapterError('HAND_NOT_READY', self.state)
             if self.job is not None:
                 raise AdapterError('HAND_BUSY', 'A primitive is already active.')
@@ -145,6 +146,31 @@ class HandAdapter:
         if job is not None and not job['future'].done():
             job['future'].set_result((success, code, message))
 
+    def _communication_wait(self, now, stale):
+        getter = getattr(self.backend, 'communication_status', None)
+        status = getter(now) if getter is not None else {}
+        pending = bool(status.get('active'))
+        inflight = stale and bool(status.get('read_in_progress'))
+        if not pending and not inflight:
+            self.communication_recovering = False
+            return False
+        # A fresh heartbeat from the ROS timer cannot renew a worker's wait.
+        # Only the source worker reports the original fixed READ deadlines.
+        from leap_hand_control.recorded_recovery import MAXIMUM_COMMUNICATION_WAIT_S
+        start = status.get('started_at' if pending else 'read_started_at')
+        end = status.get('deadline' if pending else 'read_deadline')
+        if (not isinstance(start, (int, float)) or not isinstance(end, (int, float))
+                or not math.isfinite(start) or not math.isfinite(end)
+                or not 0 < end-start <= MAXIMUM_COMMUNICATION_WAIT_S+1e-9
+                or not start <= now < end):
+            raise AdapterError('COMMUNICATION_RECOVERY_TIMEOUT', 'Bounded motor READ wait expired or invalid.')
+        job = self.job
+        if job is not None and job['started'] is not None and now-job['started'] > job['timeout']:
+            raise AdapterError('HAND_TIMEOUT', 'Primitive exceeded its time budget during READ recovery.')
+        self.communication_recovering = True
+        self.sample = None  # Unknown support; never freshen cached telemetry.
+        return True
+
     def tick(self, now):
         with self.lock:
             self._owner()
@@ -160,6 +186,7 @@ class HandAdapter:
                     now = self.backend.clock()
                 if self.stop_requested:
                     self.backend.stop()
+                    self.communication_recovering = False
                     self._finish(False, 'CANCELLED', 'Stop requested.')
                     self.identity = None
                     self.error = ''
@@ -168,10 +195,25 @@ class HandAdapter:
                     if getattr(self.backend, 'stopped', False):
                         self.state, self.sample = 'STOPPED', None
                         return
+                job = self.job
+                if job is not None and job['cancel']:
+                    self.backend.stop()
+                    self.identity = None
+                    self.state = 'IDLE'
+                    self.communication_recovering = False
+                    if getattr(self.backend, 'stopped', False):
+                        self.state, self.sample = 'STOPPED', None
+                    self._finish(False, 'CANCELLED', 'Backend stop confirmed.')
+                    return
                 sample = self.backend.read(now).validate()
                 if getattr(self.backend, 'asynchronous', False):
                     now = self.backend.clock()
-                if not 0 <= now-sample.acquired_at <= self.max_age:
+                age = now-sample.acquired_at
+                if age < 0:
+                    raise AdapterError('STALE_STATE', 'Motor snapshot is future-dated.')
+                if self._communication_wait(now, age > self.max_age):
+                    return
+                if age > self.max_age:
                     raise AdapterError('STALE_STATE', 'Motor snapshot is stale or future-dated.')
                 self.sample = sample
                 if self.state == 'FAULT':
@@ -181,14 +223,6 @@ class HandAdapter:
                 job = self.job
                 if job is None:
                     return  # HOLDING keeps sampling; no automatic OPEN/OFF.
-                if job['cancel']:
-                    self.backend.stop()
-                    self.identity = None
-                    self.state = 'IDLE'
-                    if getattr(self.backend, 'stopped', False):
-                        self.state, self.sample = 'STOPPED', None
-                    self._finish(False, 'CANCELLED', 'Backend stop confirmed.')
-                    return
                 if job['started'] is None:
                     self.backend.begin(job['command'], now)
                     job['started'] = now
@@ -203,6 +237,7 @@ class HandAdapter:
             except Exception as exc:
                 self.error = str(exc)
                 self.state = 'FAULT'
+                self.communication_recovering = False
                 # A failed read is not replaced by stale positions or fresh stamps.
                 self.sample = None
                 try:
@@ -215,12 +250,14 @@ class HandAdapter:
         with self.lock:
             sample = self.sample
             age = None if sample is None else now-sample.acquired_at
-            healthy = age is not None and 0 <= age <= self.max_age and self.state != 'FAULT'
+            healthy = (age is not None and 0 <= age <= self.max_age
+                       and self.state != 'FAULT' and not self.communication_recovering)
             supported = healthy and self.state == 'HOLDING'
             if supported and hasattr(self.backend, 'supporting'):
                 supported = self.backend.supporting(sample)
             status = dict(state=self.state, simulated=self.backend.simulated,
                         healthy=healthy, supporting=supported,
+                        communication_recovering=self.communication_recovering,
                         support_basis=getattr(self.backend, 'support_basis', 'simulated'),
                         worker_shutdown_confirmed=getattr(self.backend, 'shutdown_confirmed', False),
                         all_torque_off_verified=getattr(self.backend, 'all_torque_off_verified', False),
@@ -243,4 +280,5 @@ class HandAdapter:
                 self.backend.close()
                 self._finish(False, 'HAND_CLOSED', 'Adapter closed.')
                 self.sample = None
+                self.communication_recovering = False
                 self.state = 'CLOSED'
