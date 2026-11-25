@@ -9,9 +9,9 @@ import sys
 import numpy as np
 from leap_hand_control.recorded_orientation import FACE_UP_PRIMITIVE
 
-MANIFEST_PATH = 'right_hand_rotation_20261125/middleware_current_rotation/manifest.json'
-MANIFEST_SHA256 = 'e737b925e68ef76df6728b2d19dbe48ad384e8cfed7abdb51f80a4d767827c6e'
-SOURCE_COMMIT = '281849f23d56bbc2e6ead836ec847a041bf9b678'
+MANIFEST_PATH = 'right_hand_rotation_20261125/middleware_speed_rotation/manifest.json'
+MANIFEST_SHA256 = '97b6fb84828812ad707ec51071e57a3b02706252afe73ced75357dd748b24bd3'
+SOURCE_COMMIT = 'fe0bdc001802b6cd8fd4d63eb4b0812accd72efc'
 RECOVERY_SOURCE_HASHES = {
     'grip_transport_recovery_20261125.py': '208e5f378d12f7416550d14fdbdfbec927833fb8865a8c8eeec0b8ea0e3f7871',
     'serial_error_observer_20261125.py': '94d87dc9747b261c6f45584276b9030409ba8d52dab8fc6918256910646f18c1',
@@ -59,19 +59,44 @@ class RecordedAssets:
         with np.load(path, allow_pickle=False) as data:
             self.grip = data['start'].copy()
             goals, phases = data['goals'].copy(), data['phases'].copy()
+            dense, dense_phases = data['dense_goals'].copy(), data['dense_phases'].copy()
+            indices, limits = data['source_indices'].copy(), data['step_limits'].copy()
         h = self.manifest['horizontal_goals']
+        dh = self.manifest['horizontal_dense_goals']
         self.goals = {'grip': np.empty((0, 16), dtype=int),
                       'horizontal': goals[:h], 'vertical': goals[h:]}
         self.phases = {'grip': [], 'horizontal': phases[:h], 'vertical': phases[h:]}
+        self.dense_goals = {'grip':np.empty((0,16),dtype=int),
+                            'horizontal':dense[:dh], 'vertical':dense[dh:]}
+        self.source_indices = {'grip':np.empty(0,dtype=int),
+                               'horizontal':indices[:h], 'vertical':indices[h:]-dh}
+        self.step_limits = {'grip':np.empty(0,dtype=int),
+                            'horizontal':limits[:h], 'vertical':limits[h:]}
         if (self.grip.shape != (16,) or goals.shape != (h+self.manifest['vertical_goals'], 16)
                 or not np.isfinite(goals).all() or np.any(goals != np.rint(goals))
                 or any(not np.array_equal(rows[-1], self.grip)
                        for rows in (self.goals['horizontal'], self.goals['vertical']))):
             raise ValueError('Recorded paths must return to the same exact G.')
+        if (dense.shape != (dh+self.manifest['vertical_dense_goals'],16)
+                or phases.shape != (len(goals),) or dense_phases.shape != (len(dense),)
+                or indices.shape != (len(goals),) or indices.dtype.kind not in 'iu'
+                or np.any(indices<0) or np.any(indices>=len(dense)) or np.any(np.diff(indices)<=0)
+                or limits.shape != (len(goals),) or not np.isin(limits,[2,6]).all()
+                or not np.isfinite(dense).all() or np.any(dense!=np.rint(dense))
+                or not np.array_equal(goals,dense[indices])
+                or not np.array_equal(phases,dense_phases[indices])
+                or np.max(abs(np.diff(np.vstack([self.grip,dense]),axis=0)))>2
+                or np.any(np.max(abs(np.diff(np.vstack([self.grip,goals]),axis=0)),axis=1)>limits)):
+            raise ValueError('Recorded speed source proof/step limits mismatch.')
+        for kind in ('horizontal','vertical'):
+            proof=self.source_indices[kind]
+            if proof[0]!=0 or proof[-1]!=len(self.dense_goals[kind])-1:
+                raise ValueError('Recorded speed path omits its source endpoints.')
 
     def import_controller(self):
         # Prevent an already imported copy from redirecting ROOT-bound assets.
         for name in ('leap_measured_grip_hold_20261117', 'two_axis_cycle_plan_20261124',
+                     'vertical_speed_trial_plan_20261125', 'rotation_speed_resume_plan_20261125',
                      *(Path(name).stem for name in RECOVERY_SOURCE_HASHES)):
             loaded = sys.modules.get(name)
             if loaded is not None and Path(loaded.__file__).resolve().parent != self.root:
@@ -108,6 +133,10 @@ class RecordedAssets:
         self.import_controller()
         return importlib.import_module('grip_pause_resume_10s_trial_20261125')
 
+    def speed_controller(self):
+        self.import_controller()
+        return importlib.import_module('vertical_speed_trial_plan_20261125')
+
     def summary(self):
         return dict(source_commit=SOURCE_COMMIT, source_root=str(self.root),
                     source_hashes_verified=len(self.manifest['source_hashes']),
@@ -117,7 +146,9 @@ class RecordedAssets:
                     communication_recovery_sources_verified=len(RECOVERY_SOURCE_HASHES),
                     communication_recovery_maximum_extra_pause_s=10.,
                     index_then_middle_per_final_stage=True,
-                    maximum_motion_step_ticks=2,
+                    maximum_motion_step_ticks=6,
+                    entry_maximum_step_ticks=2,
+                    dense_source_proof_maximum_step_ticks=2,
                     arbitrary_face_orientation_mapping_available=True,
                     direction_mapping_basis='user_color_observations_20261124',
                     actual_ROS_direction_routing_tested=False)

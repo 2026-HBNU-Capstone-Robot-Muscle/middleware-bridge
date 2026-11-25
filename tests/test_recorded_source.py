@@ -61,6 +61,7 @@ class SourceReplayTests(unittest.TestCase):
         class Bus(self.FakeBus):
             def write(bus, address, size, values):
                 if address == 116:
+                    pose.validate_goal_return(values,bus.last_goal_command,bus.entry_anchor)
                     goals.append((bus.report.get('phase', ''), np.asarray(values).copy()))
                     phase_bounds.append((bus.report.get('phase', ''), pose.bounds()[1].copy()))
                 super().write(address, size, values)
@@ -97,7 +98,7 @@ class SourceReplayTests(unittest.TestCase):
         np.testing.assert_array_equal(v, assets.goals['vertical'])
         self.assertEqual(done, [1, 2])
         self.assertEqual(bus.report['planned_goals'], len(sequence.rows_list))
-        self.assertGreater(clock.t, 800.)
+        self.assertGreater(clock.t, 500.)
         self.assertEqual(sum(a == 64 and np.all(q) for a, q in bus.writes), 1)
         last_goal = max(i for i, (a, _) in enumerate(bus.writes) if a == 116)
         self.assertTrue(all(i > last_goal for i, (a, q) in enumerate(bus.writes)
@@ -110,10 +111,55 @@ class SourceReplayTests(unittest.TestCase):
         self.assertTrue(any(high[13] > native[13] for phase, high in phase_bounds
                             if phase.startswith('ros_1_h_')))
         self.assertIs(pose.bounds, self.plan.ORIGINAL_BOUNDS)
-        self.assertLessEqual(np.max(abs(np.diff(np.array([q for _, q in goals]), axis=0))), 2)
+        steps=np.max(abs(np.diff(np.vstack([assets.grip,*[q for _,q in goals]]),axis=0)),axis=1)
+        self.assertLessEqual(steps.max(),6)
+        self.assertGreater(steps.max(),2)
+        entry=np.asarray([p.startswith('ros_entry_') for p,_ in goals])
+        self.assertLessEqual(steps[entry].max(),2)
+        import goal_readback_confirmation as readback
+        self.assertEqual(readback.MAX_STEP_TICKS,2)
+        self.assertIs(pose.validate_goal_return,sequence.speed.ORIGINAL_VALIDATOR)
         for token, samples in zip((1, 2), completion_samples):
             self.assertEqual(len(samples), 3)
             self.assertTrue(all(s['phase'] == f'ros_{token}_G_hold' for s in samples))
+
+    def test_speed_export_is_exact_standalone_core_with_same_slow_phases(self):
+        import hashlib
+        from rotation_speed_resume_plan_20261125 import SLOW_SEATING_PHASES
+        base=self.assets.root/'right_hand_rotation_20261125/rotation_3x_with_recovery'
+        for axis in ('horizontal','vertical'):
+            path=base/axis/'candidate.npz'
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),
+                self.assets.manifest['source_axis_candidate_sha256'][axis])
+            with np.load(path,allow_pickle=False) as data:
+                labels=data['phases']
+                selected=np.asarray([str(p).startswith('trial_'+axis+'_') for p in labels])
+                np.testing.assert_array_equal(self.assets.goals[axis],data['goals'][selected])
+                expected=np.asarray([2 if str(p) in SLOW_SEATING_PHASES else 6 for p in labels[selected]])
+                np.testing.assert_array_equal(self.assets.step_limits[axis],expected)
+
+    def test_fast_packet_requires_exact_next_target_and_cannot_run_in_entry_or_hold(self):
+        from leap_hand_control.recorded_runtime import CommandSequence
+        import goal_readback_confirmation as readback
+        pose=self.pose
+        sequence=CommandSequence(self.assets,pose,self.plan,(1,'horizontal'),Queue(),{},lambda token:None)
+        rows=sequence.rows(self.assets.grip)
+        changes=np.max(abs(np.diff(np.vstack([self.assets.grip,rows]),axis=0)),axis=1)
+        index=int(np.flatnonzero(changes>2)[0])
+        old=rows[index-1]
+        with sequence.runtime_limits():
+            sequence.phase(index,True)
+            np.testing.assert_array_equal(pose.validate_goal_return(rows[index],old,self.assets.grip),rows[index])
+            wrong=rows[index].copy();wrong[0]+=1
+            with self.assertRaises(RuntimeError):pose.validate_goal_return(wrong,old,self.assets.grip)
+            wrong=old.copy();wrong[0]+=7
+            with self.assertRaises(RuntimeError):pose.validate_goal_return(wrong,old,self.assets.grip)
+            sequence.phase(0,True)
+            with self.assertRaises(RuntimeError):pose.validate_goal_return(rows[index],old,self.assets.grip)
+            sequence.phase(len(rows),False)
+            with self.assertRaises(RuntimeError):pose.validate_goal_return(rows[index],old,self.assets.grip)
+        self.assertEqual(readback.MAX_STEP_TICKS,2)
+        self.assertIs(pose.validate_goal_return,sequence.speed.ORIGINAL_VALIDATOR)
 
     def test_final_G_health_failure_does_not_complete_the_request(self):
         from leap_hand_control.recorded_runtime import CommandSequence
@@ -151,6 +197,7 @@ class SourceReplayTests(unittest.TestCase):
         class Bus(self.FakeBus):
             def write(bus, address, size, values):
                 if address == 116:
+                    pose.validate_goal_return(values,bus.last_goal_command,bus.entry_anchor)
                     self.assertFalse(done)
                     goals.append((bus.report.get('phase', ''), np.array(values).copy()))
                 super().write(address, size, values)
@@ -171,7 +218,7 @@ class SourceReplayTests(unittest.TestCase):
             actual = np.array([q for phase, q in goals if phase.startswith(f'ros_1_leg_{i}_{short}_')])
             np.testing.assert_array_equal(actual, self.assets.goals[kind])
         self.assertEqual(done, [1])
-        self.assertGreater(clock.t, 1200.)
+        self.assertGreater(clock.t, 800.)
         joins = [s for s in bus.report['samples'] if s['phase'].startswith('ros_1_join_G_')]
         self.assertEqual(len(joins), 8)
         self.assertTrue(all(s['goal'] == self.assets.grip.tolist() for s in joins))
@@ -332,6 +379,7 @@ class SourceReplayTests(unittest.TestCase):
                 if bus._motion_paused:
                     raise AssertionError('Write occurred during READ-only recovery pause')
                 if address == 116:
+                    self.pose.validate_goal_return(values,bus.last_goal_command,bus.entry_anchor)
                     goals.append((bus.report.get('phase', ''), np.asarray(values).copy()))
                 return fake.write(bus, address, size, values)
 

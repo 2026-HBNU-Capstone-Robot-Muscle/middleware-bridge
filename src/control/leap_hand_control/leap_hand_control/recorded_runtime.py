@@ -33,8 +33,12 @@ class CommandSequence:
         self.first, self.requests = first, requests
         self.report, self.completed = report, completed
         self.reference = plan.TwoAxisCycle()
+        self.speed = assets.speed_controller()
         self.bus = None
         self.rows_list, self.labels, self.legs = [], [], []
+        self.original_rows, self.indices, self.row_limits = [], [], []
+        self.actual_rows = self.rows_list
+        self.index, self.moving = 0, False
         self.active = None
         self.active_leg = 'entry'
         self.confirmed = 0
@@ -53,10 +57,27 @@ class CommandSequence:
             old = self.pose.bounds
             self.pose.bounds = self.current_bounds
             try:
-                yield
+                with self.speed.VerticalSpeedTrial.runtime_scope(self):
+                    yield
             finally:
                 self.pose.bounds = old
         return scoped()
+
+    def _constant(self, label):
+        self.indices.append(len(self.original_rows))
+        self.original_rows.append(self.assets.grip.copy())
+        self.rows_list.append(self.assets.grip.copy())
+        self.labels.append(label)
+        self.legs.append('entry')
+        self.row_limits.append(2)
+
+    def _limit(self):
+        return int(self.row_limits[self.index]) if self.moving else 2
+
+    def validate_packet(self, value, previous, entry):
+        # The same exact-next-packet and dense2tick proof used by the checked
+        # standalone speed trials. Arbitrary6tick targets are not admitted.
+        return self.speed.VerticalSpeedTrial.validate_packet(self, value, previous, entry)
 
     def _append(self, job):
         token, payload = job[:2]
@@ -68,17 +89,22 @@ class CommandSequence:
         for leg, kind in enumerate(kinds):
             if leg:
                 # At least three fresh guarded G samples between route legs.
-                self.rows_list.extend(self.assets.grip.copy() for _ in range(4))
-                self.labels.extend([f'ros_{token}_join_G_{leg}']*4)
-                self.legs.extend(['entry']*4)
+                for _ in range(4):
+                    self._constant(f'ros_{token}_join_G_{leg}')
             goals = self.assets.goals[kind]
+            dense = self.assets.dense_goals[kind]
+            bounds = self.reference.horizontal_bounds if kind=='horizontal' else self.plan.ORIGINAL_BOUNDS
+            if len(dense):
+                self.reference.check_rows(self.assets.grip,dense,bounds)
+            offset = len(self.original_rows)
+            self.original_rows.extend(q.copy() for q in dense)
+            self.indices.extend(int(i)+offset for i in self.assets.source_indices[kind])
+            self.row_limits.extend(int(i) for i in self.assets.step_limits[kind])
             prefix = f'ros_{token}_' if len(kinds) == 1 else f'ros_{token}_leg_{leg}_'
             self.rows_list.extend(q.copy() for q in goals)
             self.labels.extend(prefix+str(p) for p in self.assets.phases[kind])
             self.legs.extend([kind]*len(goals))
-            self.rows_list.append(self.assets.grip.copy())
-            self.labels.append(prefix+'final_G_check')
-            self.legs.append('entry')
+            self._constant(prefix+'final_G_check')
         self.active = job
         self.confirmed, self.previous_state = 0, None
         self.report['planned_goals'] = len(self.rows_list)
@@ -91,6 +117,12 @@ class CommandSequence:
         intro, labels = grip_entry(current, self.assets.grip)
         self.reference.check_rows(current, intro, self.plan.ORIGINAL_BOUNDS)
         self.rows_list = [q.copy() for q in intro]+[self.assets.grip.copy() for _ in range(40)]
+        self.actual_rows = self.rows_list
+        self.original_rows = [q.copy() for q in self.rows_list]
+        self.indices = list(range(len(self.rows_list)))
+        self.row_limits = [2]*len(self.rows_list)
+        self.entry = np.asarray(current).copy()
+        self.index, self.moving = 0, False
         self.labels = ['ros_entry_'+p for p in labels]+['ros_entry_settle_G']*40
         self.legs = ['entry']*len(self.rows_list)
         self._append(self.first)
@@ -101,7 +133,9 @@ class CommandSequence:
                     source_candidate_sha256=self.assets.manifest['candidate_sha256'],
                     automatic_stage_transitions_enabled=True, phase_gate_indices={},
                     intermediate_OFF_included=False, period_seconds=.075,
-                    maximum_step_ticks=2, current_cap_ma=450,
+                    maximum_step_ticks=6, entry_maximum_step_ticks=2,
+                    original_dense_source_maximum_step_ticks=2,
+                    speed_scope='exact_next_selected_source_target_only', current_cap_ma=450,
                     physical_cube_orientation_verified=False,
                     completion_basis='joint_path_and_three_checked_G_samples')
 
@@ -127,6 +161,7 @@ class CommandSequence:
             self.active = None
 
     def phase(self, index, moving):
+        self.index, self.moving = index, moving
         if moving:
             self.active_leg = self.legs[index]
             return self.labels[index]
