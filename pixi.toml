@@ -13,9 +13,11 @@ ros-humble-rosbridge-suite = ">=2.0.8,<3"
 rubik-solver-py = "==0.1.1"
 ultralytics = "==8.4.174"
 torch = "==2.15.0"
+pyserial = "==3.5"
+stable-baselines3 = "==2.7.0"
 
 [tasks]
 check-execution-contract = "python -B scripts/check_execution_contract.py"
 list-packages = "colcon list --base-paths src"
-build-windows = "colcon --log-base .colcon-win/log build --executor sequential --merge-install --base-paths src --build-base .colcon-win/build --install-base .colcon-win/install"
+build-windows = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build_ros2.ps1"
 rosbridge = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/run_rosbridge.ps1"

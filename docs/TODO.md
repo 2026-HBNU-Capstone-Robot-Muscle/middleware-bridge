@@ -1,6 +1,6 @@
 # 실물 통합 작업 지시
 
-현재 ROS2 middleware는 Windows 환경에서 카메라로 큐브를 인식하고 풀이를 생성하며, ROS 액션으로 각 손의 작업 순서를 dry-run하는 단계까지 구현되어 있습니다. 다음은 실제 하드웨어 정보와 센서 입력을 확인해 연결하고, 안전 검증을 거쳐 실물 동작을 확인하는 작업입니다.
+Windows ROS 2 미들웨어는 카메라로 큐브를 인식하고 풀이를 생성하며, 두 손의 작업 순서를 dry-run합니다. 좌수 Custom Hand는 기존 ROS 액션 서버에 실기 제어기를 연결했습니다. 다음 작업은 이식한 좌수 패키지의 실물 시험과 두 손 통합에 필요한 센서·제어·정지 검증입니다.
 
 ### 2026-11-16 오른손 작업 재개 기준
 
@@ -25,11 +25,11 @@
 - 별도 opt-in `recorded` backend에 G 준비/가로/세로 직접 액션,완료 뒤 같은 제어기의 G 유지,다음 요청,취소·정지·OFF/설정 복구를 연결했다. 원본267개 해시와 경로·제어기·범위를 보존한다.
 - 11/24 후속: 사용자 색 관찰(초/노/빨→초/주/노→빨/초/노)로 가로 U고정/F→R,세로 R고정/U→F를 등록했다. `orient_face_up_and_support`의 현재 방향→기존 경로 조합 선택과 완료 뒤 논리 상태 갱신을 연결했고144개 계획 및 전체137개 장치 없는 시험을 통과했다. [recorded-orientation.md](recorded-orientation.md)에 근거와 요청법을 정리했다. 실제 ROS/모터 시험,상위의 완료 방향 상태 소비·지지 heartbeat 감시는 남아 있으며 GUI 전체 실기 실행 차단은 유지한다.
 
-### 2026-11-17 Custom Hand 실기 작업 현황
+### Custom Hand 실기 작업 현황
 
-- 좌수 저장소 [develop/chu 실기 문서](https://github.com/2026-HBNU-Capstone-Robot-Muscle/left-rl-with-mujoco/blob/develop/chu/docs/primitive_README.md)에 기존 PPO·설정과 단독 실행 방법을 정리했다. 사용자가 `primitive_cli.py`로 파지·회전·해제·초기 복귀를 실기 확인했다고 보고했다.
-- 손가락 ID1~4와 손목 ID10을 사용한다. 손목 기준은 2400틱이며 시계 방향은 틱 감소다. 90도 요청은 50도씩 두 구간으로 움직이고 중간에 재파지한다.
-- 현재 설정과 검증되지 않은 항목은 [hardware-setting.md](hardware-setting.md)와 [incomplete.md](incomplete.md)에 기록한다. CLI 실기 확인과 ROS 액션을 통한 실기 통합은 별개다. Custom Hand ROS 서버는 현재 dry-run 전용이다.
+- 좌수 `develop/chu`에서 사용자가 CLI와 독립 ROS 서버의 파지·회전·해제를 실기 확인했다. [좌수 저장소 실기 문서](https://github.com/2026-HBNU-Capstone-Robot-Muscle/left-rl-with-mujoco/blob/develop/chu/docs/primitive_README.md)
+- 미들웨어의 기존 서버에 제어기·실기 PPO·모터 설정·시험 보정값을 이식했다. Windows 빌드와 모터를 쓰지 않는 좌수 ROS 액션 및 두 손 풀이 경로를 검증했다. [좌수 실기 실행 문서](custom-hand-hardware.md)
+- 다음은 이식한 패키지로 파지 유지, 세 회전 요청, 해제 후 손목 복귀와 토크 OFF를 실물에서 확인하는 작업이다. LEAP 실기 연동이 준비되면 두 손의 오류 처리와 재개 조건을 확인한다. [하드웨어 설정표](hardware-setting.md) · [미완료 항목](incomplete.md)
 
 ### 1. 실물과 연결 정보 확인
 
@@ -62,7 +62,7 @@ right_rl_with_mujoco/deploy의 설정을 참고하되 실물에서 확인하세�
 
 ### 3. Custom Hand 손가락 확인
 
-left-rl-with-mujoco/sim2real의 코드를 참고해 현재 실물에서 확인하세요.
+미들웨어에 설치된 `config.provisional.json`과 `primitive_calibration.local.json`을 참고해 현재 실물에서 확인하세요.
 
 - 참조 설정인 COM8, 1 Mbps, ID 4·1·2·3이 현재 PC와 조립에서도 맞는지
 - ID별 모델 번호와 손가락 대응
@@ -74,14 +74,14 @@ left-rl-with-mujoco/sim2real의 코드를 참고해 현재 실물에서 확인�
 
 ### 4. Custom Hand 손목 모터 확인
 
-좌수 `develop/chu` 단독 실기 코드의 STS3215 ID10 제어와 사용자 확인 결과를 확보했다. 통합 PC에서 연결·완료·정지 동작을 확인하고 미들웨어와 연결해야 한다.
+기존 Custom Hand ROS 액션 서버에 STS3215 ID10 제어를 연결했다. 이식한 패키지에서 손목 회전·복귀와 정지 동작을 확인해야 한다.
 
 - Feetech STS3215의 실제 COM 포트, 통신 속도, 프로토콜, 모터 ID
 - 손목 회전축의 방향, 영점, 안전한 회전 범위
 - 속도·가속도 제한과 작업 완료 확인 방법
 - 통신 끊김·정지 요청·비상 정지 때의 동작
 
-이 정보와 안전 정지가 확인되기 전에는 middleware에 손목 구동을 연결하지 마세요.
+단독 시험의 결과를 기록한 뒤 두 손 통합 시험의 정지·완료 기준에 반영하세요.
 
 ### 5. 큐브 위치와 좌표계 연결
 

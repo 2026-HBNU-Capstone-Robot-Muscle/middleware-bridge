@@ -2,6 +2,8 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 ├── .gitattributes
 ├── .gitignore
 ├── README.md
+├── start.bat                          # GUI와 ROS dry-run 스택 원클릭 시작
+├── stop.bat                           # GUI와 ROS dry-run 스택 원클릭 종료
 ├── pixi.toml                         # Windows (win-64)용 ROS 2 Humble 환경 및 작업 정의
 ├── pixi.lock                         # 고정된 Pixi 환경 의존성
 ├── .pixi/                            # 로컬 Pixi 환경 생성물 (Git 제외)
@@ -29,9 +31,7 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 │       ├── run_rosbridge.ps1         # ROS overlay를 적용해 사용자 정의 인터페이스 사용
 │       ├── test_rosbridge_ws.ps1     # PowerShell 토픽 왕복·서비스 확인 스크립트
 │       ├── run_ros_node.ps1          # colcon overlay에서 ROS 노드 실행
-│       ├── start_gui_dryrun.bat      # GUI와 ROS dry-run 스택 원클릭 시작
 │       ├── start_gui_dryrun.ps1      # 포트·노드 준비 확인 및 프로세스 실행
-│       ├── stop_gui_dryrun.bat       # 원클릭 실행 세션 종료
 │       └── stop_gui_dryrun.ps1       # 실행기가 시작한 프로세스 트리 종료
 ├── src/                              # colcon이 검색하는 ROS 2 패키지
 │   ├── control/
@@ -72,15 +72,16 @@ middleware-bridge/                      # ROS 2 통합 프로젝트
 │       │   └── CubeSolution.msg      # 큐브 상태와 풀이 수열
 │       └── srv/
 │           ├── SolveCube.srv         # 큐브 풀이 요청·응답
-│           └── SetCameraEnabled.srv  # GUI의 카메라 시작·중지 요청
+│           ├── ListCameras.srv       # GUI의 카메라 검색 요청
+│           └── SetCameraEnabled.srv  # GUI의 선택 카메라 시작·중지 요청
 └── log/                              # 현재 남아 있는 이전 colcon 로그
 
 ## 현재 상태: ROS2 큐브 dry-run GUI 및 인식·풀이 연동 구현
 
 - `apps/monitoring_ui`의 Tauri 2 화면은 큐브 풀이 facelets와 이동 수열, 로컬 3D 시뮬레이션, ROS 진행 상태, 브릿지 신호와 이벤트를 표시합니다. `src`는 ROS 저장소 루트, UI JavaScript, Tauri Rust 코드 각각의 소스 폴더이므로 서로 다른 앱의 영역입니다.
-- UI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 `/cube/solution`과 `/cube/execution_status`를 구독하고 `/cube/execute_solution` 액션을 요청합니다. 액션 목표는 `dry_run=true`, `run_pretrained_policies=false`로 고정되어 있으며 실물 실행 모드는 노출하지 않습니다.
+- UI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 `/cube/solution`과 `/cube/execution_status`를 구독하고 `/cube/execute_solution` 액션을 요청합니다. 실행 모드는 dry-run이 기본이며 `/cube/real_mode_ready`가 유효할 때만 실물 모드로 전환할 수 있습니다. 현재 publisher가 없고 executor와 hand adapter가 실물 구동을 거부하므로 실물 토글은 비활성 상태입니다.
 - `src-tauri/tauri.conf.json`에는 로컬 rosbridge WebSocket 연결만 허용하는 CSP를 설정했습니다. `scripts/build.ps1`는 별도 Node.js 없이 PowerShell로 Tauri 정적 화면을 `dist/`에 생성합니다. 3D 큐브는 외부 CDN 없이 Canvas로 렌더링합니다.
-- `scripts/windows/start_gui_dryrun.bat`은 rosbridge, `/cube/solve` solver, YOLO detector, LEAP·Custom dry-run adapter, 큐브 실행기, 카메라 관리 노드, Tauri GUI를 순서대로 시작합니다. GUI의 `/cube/set_camera_enabled` 버튼 요청으로 캡처 노드를 시작·중지하며, 현재 상태는 `/cube/camera_active`로 발행합니다. 기본 카메라는 장치 0, `dshow`, 1280×720, 30 FPS이고 backend를 `msmf`, `any` 순서로 재시도합니다. 장치 인덱스와 시작 backend는 실행 매개변수로 변경할 수 있습니다. 손 adapter는 dry-run으로 유지되어 모터 출력은 비활성입니다. `stop_gui_dryrun.bat`은 실행기가 시작한 프로세스 트리를 종료합니다.
+- 저장소 루트의 `start.bat`은 rosbridge, `/cube/solve` solver, YOLO detector, LEAP·Custom dry-run adapter, 큐브 실행기, 카메라 관리 노드, Tauri GUI를 순서대로 시작합니다. GUI는 `/cube/list_cameras`로 인덱스 0~2에서 최대 세 대를 검색하고, `/cube/set_camera_enabled`에 선택 인덱스를 전달해 카메라 캡처를 시작·중지합니다. 한 번에 한 카메라만 캡처하며 다른 장치를 선택하면 현재 캡처를 중지한 뒤 전환합니다. 캡처 상태는 `/cube/camera_active`로 발행합니다. 선택한 장치는 `dshow`, `msmf`, `any` backend 순으로 열기를 재시도합니다. 저장소 루트의 `stop.bat`은 실행기가 시작한 프로세스 트리를 종료합니다.
 - rosbridge WebSocket 연결, talker의 `/chatter` 메시지 수신, 발행 메시지 왕복, `17 + 25 = 42` 서비스 응답을 확인했습니다. 이전에는 Node 기반 스크립트로, 현재는 `scripts/windows/test_rosbridge_ws.ps1`로 같은 검증을 통과했습니다. ROS 예제는 `demo_nodes_py talker`와 `demo_nodes_cpp add_two_ints_server`를 사용했습니다.
 - Windows 개발 도구 확인 결과 Visual Studio 2026 C++ 빌드 구성 요소와 WebView2가 있고, Rust/Cargo 및 Tauri CLI는 `ROOT\.cargo\bin`에 설치되어 있습니다. PowerShell에서 `cargo`가 바로 인식되지 않으면 새 창을 열거나 Cargo 실행 파일의 전체 경로를 사용합니다.
 - Tauri 빌드가 요구하는 `src-tauri/icons/icon.ico`를 추가했고 `cargo tauri dev` 빌드를 통과했습니다. Tauri WebView에서 한국어 진단 화면이 렌더링되는 것을 확인했습니다. 개발 창은 CLI가 제공하는 로컬 정적 서버를 사용하므로 `target/debug` 실행 파일을 따로 열지 말고 `cargo tauri dev`로 실행해야 합니다.

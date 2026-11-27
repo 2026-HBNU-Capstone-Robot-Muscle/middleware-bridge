@@ -172,7 +172,7 @@ function Test-PreviousSessionActive {
 
 try {
     if (Test-PreviousSessionActive) {
-        throw "이 실행기 세션이 이미 켜져 있습니다. 먼저 scripts\windows\stop_gui_dryrun.bat을 실행하세요."
+        throw "이 실행기 세션이 이미 켜져 있습니다. 먼저 저장소 루트의 stop.bat을 실행하세요."
     }
     if (-not (Test-Path -LiteralPath $overlaySetup)) {
         throw "ROS 패키지 빌드 결과가 없습니다. 저장소 루트에서 pixi run build-windows를 먼저 실행하세요."
@@ -255,7 +255,7 @@ try {
         -FilePath $pixi `
         -ArgumentList $cameraManagerArguments `
         -WorkingDirectory $repositoryRoot
-    Wait-ForLogText -Entry $cameraManager -ExpectedText 'Camera manager ready: /cube/set_camera_enabled'
+    Wait-ForLogText -Entry $cameraManager -ExpectedText 'Camera manager ready: /cube/list_cameras and /cube/set_camera_enabled.'
     Write-Stage '카메라 관리 서비스 준비 완료 (GUI 버튼에서 시작 가능)'
 
     $tauri = Start-ManagedProcess `
@@ -288,7 +288,7 @@ try {
     Write-Stage '데스크톱 GUI와 ROS dry-run 서버가 준비되었습니다.'
     Write-Host 'GUI에서 연결 상태를 확인한 뒤 스캔하거나 저장된 풀이를 발행하세요.'
     Write-Host "로그: $logDirectory"
-    Write-Host '종료할 때는 stop_gui_dryrun.bat을 실행하세요.'
+    Write-Host '종료할 때는 저장소 루트의 stop.bat을 실행하세요.'
 }
 catch {
     Write-Host "[GUI dry-run 오류] $($_.Exception.Message)" -ForegroundColor Red

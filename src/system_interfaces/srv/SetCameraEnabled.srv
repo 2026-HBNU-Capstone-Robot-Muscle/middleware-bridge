@@ -1,5 +1,7 @@
 bool enabled
+int32 camera_index
 ---
 bool success
 bool active
+int32 active_camera_index
 string message

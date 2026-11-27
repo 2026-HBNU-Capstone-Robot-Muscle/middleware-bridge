@@ -29,6 +29,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/HandPolicyAction.msg"
   "msg/CubePolicyGoal.msg"
   "srv/SolveCube.srv"
+  "srv/ListCameras.srv"
   "srv/SetCameraEnabled.srv"
   DEPENDENCIES action_msgs geometry_msgs sensor_msgs std_msgs
 )

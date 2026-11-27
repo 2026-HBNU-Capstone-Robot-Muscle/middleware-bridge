@@ -20,6 +20,23 @@ Pixi는 PowerShell에서 설치할 수 있습니다.
 winget install prefix-dev.pixi
 ```
 
+### 새 Windows PC에서 자동 설치
+
+저장소를 복제하거나 압축 해제한 뒤 루트에서 `install.bat`을 실행하면 예상 추가 디스크 공간(약 15~25 GB)과 다운로드 용량(약 5~10 GB)을 안내하고 설치 여부를 묻습니다. 기존에 설치된 도구와 패키지 캐시에 따라 실제 사용량은 달라집니다. `Y`를 선택하면 아래 작업을 순서대로 진행하고, `N`을 선택하면 아무 설치 작업 없이 종료합니다.
+
+1. Pixi가 없으면 winget으로 설치
+2. Rustup/Cargo가 없으면 설치하고 `stable-msvc` toolchain 선택
+3. Visual Studio 2022 C++ Build Tools의 `Desktop development with C++` workload가 없으면 설치
+4. WebView2 Runtime이 없으면 Microsoft 공식 bootstrapper로 설치
+5. Tauri CLI가 없으면 Cargo로 설치
+6. `pixi install`, `pixi run build-windows`, 정적 Tauri frontend 생성 실행
+
+저장소 경로에는 한글 등 비 ASCII 문자와 공백을 사용하지 마세요. Windows의 ROS 2 빌드 도구가 이런 경로를 안정적으로 처리하지 못할 수 있습니다. 노트북에서는 영문·숫자·하이픈만 사용하는 경로에 저장소를 새로 복제한 뒤 `install.bat`을 실행하세요. 설치기는 잘못된 경로를 감지하면 영어 안내를 표시하고 빌드 전에 중단합니다. 이미 설치한 작업 폴더를 옮기는 경우 `.pixi/`와 `.colcon-win/`에는 이전 위치가 기록될 수 있으므로 새 위치에서 다시 생성해야 합니다. 이 디렉토리들은 Git에 포함하지 않습니다.
+
+필요 조건은 64비트 Windows, winget(App Installer), 인터넷 연결입니다. C++ Build Tools는 용량이 큰 구성 요소이며 설치 관리자에서 관리자 승인을 요구할 수 있습니다. 조직 PC의 winget 정책이나 권한으로 설치가 차단되면 아래 사전 준비 항목을 수동 설치한 후 `install.bat`을 다시 실행하면 됩니다. 설치 후 GUI는 저장소 루트의 `start.bat`으로 실행합니다.
+
+자동 설치는 장치 드라이버, 카메라 권한, 실제 핸드 모터 연결을 구성하지 않습니다. 현재 `start.bat`은 실물 구동이 비활성화된 dry-run 실행기입니다.
+
 설치 후 새 PowerShell을 열고 저장소 루트에서 프로젝트 환경을 설치합니다.
 
 ```powershell
@@ -60,6 +77,8 @@ pixi run list-packages
 ```powershell
 pixi run build-windows
 ```
+
+Windows 빌드 래퍼는 활성 Pixi 환경의 `python.exe`를 CMake의 `Python3_EXECUTABLE`, `Python_EXECUTABLE`, `PYTHON_EXECUTABLE`로 지정합니다. 따라서 시스템 또는 MSYS2 Python이 ROS 인터페이스 생성에 선택되지 않으며, 실행 때 사용하는 Pixi Python과 빌드 인터프리터가 일치합니다.
 
 ## rosbridge 실행
 
