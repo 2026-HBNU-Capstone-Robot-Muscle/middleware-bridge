@@ -14,7 +14,7 @@
 
 | 모드 | 장치 접근 | 동작·지지 결과 |
 |---|---|---|
-| `mock` 기본값 | 없음 | 인터페이스 시험용. `simulated=true`, dry-run만 수락 |
+| `mock` (호환 `leap_hand_adapter`의 기본값) | 없음 | 인터페이스 시험용. `simulated=true`, dry-run만 수락 |
 | `read_only` | 지정 포트의 PING/READ만 | 실제16개 위치·목표·전류·전압·온도·토크 읽기. 동작 요청은 READ_ONLY로 거부 |
 | `recorded` 명시적 선택 | 원본 PoseBus의 읽기·제한된 RAM 쓰기 | 별도 활성화와 직접 grip/horizontal/vertical 액션 필요. 완료 후 G 유지. [11/24 안내](recorded-motion.md) |
 

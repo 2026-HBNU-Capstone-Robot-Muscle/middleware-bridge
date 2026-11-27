@@ -650,6 +650,7 @@ environments:
       - conda: https://prefix.dev/robostack-humble/win-64/ros2-visualization-msgs-4.9.2-np2py314hf807026_22.conda
       - conda: https://prefix.dev/robostack-humble/win-64/ros2-yaml-cpp-vendor-8.0.2-np2py314hf807026_22.conda
       - conda: https://prefix.dev/robostack-humble/win-64/ros2-zstd-vendor-0.15.17-np2py314h327c029_22.conda
+      - pypi: https://files.pythonhosted.org/packages/01/4a/c58bf575b5eec48ac3fe54c74c1fdd5a456ac8b03249f5e53dc0be503041/dynamixel_sdk-4.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/07/bc/587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0e/9f/5246244e2674210549e8b6247bf28a6b586878c2e744d2c82b4d4f872bf7/ultralytics_thop-2.2.3-py3-none-any.whl
@@ -12585,6 +12586,14 @@ packages:
   run_exports: {}
   size: 21796
   timestamp: 1792806819652
+- pypi: https://files.pythonhosted.org/packages/01/4a/c58bf575b5eec48ac3fe54c74c1fdd5a456ac8b03249f5e53dc0be503041/dynamixel_sdk-4.1.0-py3-none-any.whl
+  name: dynamixel-sdk
+  version: 4.1.0
+  sha256: 4cb91491edcb5c0b9d7eda34935c26ae6a37c1fe766cc6c4b58bc6583fb941f2
+  requires_dist:
+  - pyserial
+  - importlib-resources ; python_full_version < '3.9'
+  requires_python: '>=3.6'
 - pypi: https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl
   name: h11
   version: 0.16.0

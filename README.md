@@ -1,6 +1,6 @@
 # middleware-bridge
 
-Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐브 면을 수집해 URFDLB 상태를 만들고 Kociemba 풀이를 생성한 뒤, ROS 2 action으로 LEAP Hand와 Custom Hand의 동작 순서를 실행하는 구조입니다. 현재 인식·풀이 및 hand 동작 orchestration은 연결되어 있으며, 조작 경로는 dry-run입니다. 실제 pose·관절 입력과 모터 구동은 아직 연결되지 않았습니다.
+Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐브 면을 수집해 URFDLB 상태를 만들고 Kociemba 풀이를 생성한 뒤, ROS 2 action으로 LEAP Hand와 Custom Hand의 동작 순서를 실행하는 구조입니다. GUI의 두 손 풀이 실행은 dry-run입니다. 각 손의 표준 ROS 노드에는 명시적 실기 옵션을 연결했습니다. [오른손 실행](docs/leap-hardware.md) · [왼손 실행](docs/custom-hand-hardware.md)
 
 ## 실행 방법
 
@@ -52,8 +52,8 @@ Windows 기반 ROS 2 Humble 미들웨어 프로젝트입니다. 카메라로 큐
 | `src/perception/cube_detection` | YOLO OBB 검출, 카메라 캡처, 색 분류와 큐브 상태 검증 |
 | `src/planning/cube_solver` | `/cube/solve` Kociemba 풀이 서비스 |
 | `src/control/cube_execution` | 풀이 실행 action, workflow 전개, 방향 순열 trace, calibration gate |
-| `src/control/leap_hand_control` | LEAP 정책 추론기와 hand primitive dry-run action server |
-| `src/control/custom_hand_control` | Custom Hand 정책 추론기와 hand primitive dry-run action server |
+| `src/control/leap_hand_control` | 기본 dry-run 및 명시적 recorded 가로·세로·G 유지 action server |
+| `src/control/custom_hand_control` | 기본 dry-run 및 명시적 손가락·손목 실기 action server |
 | `src/policy/rl_policy` | 정책 관련 ROS 패키지 |
 | `src/system_bringup` | 정책 입력 bridge 및 통합 실행 구성 |
 | `src/system_interfaces` | 프로젝트 ROS 메시지·서비스·action 정의 |
@@ -122,8 +122,8 @@ python scripts\ros2_dryrun_check.py --mode cancel
 
 **확인된 부분:** 카메라 facelet 수집·검증, Kociemba 풀이와 JSON 저장, ROS 2 토픽·서비스·action 연결, 저장 풀이 dry-run, 고정 모델 shadow 추론 및 방향 순열 계획 trace, 저장 JSON 구조·물리 상태 사전 검증.
 
-**미완료:** 실제 큐브 pose와 좌표계 provider, LEAP·Custom 정책의 실측 입력 연결, 실제 모터 command adapter, 동작 완료 피드백, 안전 정지·복구와 하드웨어 시험. 이 항목들은 측정 pose/프레임, 실제 입력 provider, 장치별 제어 및 안전 검증이 준비돼야 합니다. 현재는 `dry_run=false` 실제 구동을 지원하지 않습니다.
+**미완료:** 실제 큐브 pose·좌표 등록, 정책 실측 입력, 통합 PC의 실제 동작·지지·정지 확인과 양손 통합 시험. 오른손 저장 경로와 좌수 실기 제어기는 단독 노드의 명시적 하드웨어 옵션 및 `dry_run=false` 요청에 연결했습니다. GUI의 전체 풀이 실기 활성화와 구분합니다.
 
 실기 코드에서 찾은 포트·모터·제어 설정은 [하드웨어 설정표](docs/hardware-setting.md)에, 실물 전 남은 입력·보정·안전 항목은 [미완료 목록](docs/incomplete.md)에 기록했습니다.
 
-Tauri 큐브 조작 GUI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 풀이와 실행 피드백을 표시합니다. 실행 모드는 dry-run이 기본이며 `/cube/real_mode_ready` 준비 신호가 없으면 실물 모드 전환이 잠깁니다. 현재 middleware는 실물 구동 adapter를 제공하지 않습니다. 실행 방법은 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.
+Tauri 큐브 조작 GUI는 기본 `ws://127.0.0.1:9090` rosbridge에 연결해 풀이와 실행 피드백을 표시합니다. 실행 모드는 dry-run이 기본이며 `/cube/real_mode_ready` 준비 신호가 없으면 실물 모드 전환이 잠깁니다. 단독 손 실기 옵션이 이 준비 신호나 전체 풀이 허용을 자동으로 만들지는 않습니다. 실행 방법은 [모니터링 UI README](apps/monitoring_ui/README.md)를 참고하세요.

@@ -1,4 +1,4 @@
-"""ROS state/primitive adapter; default mock, explicit hardware READ-only mode."""
+"""ROS state/primitive adapter and opt-in recorded hardware control."""
 
 import json
 import time
@@ -19,29 +19,51 @@ from leap_hand_control.primitive_server import LeapHandPrimitiveServer
 class LeapHandAdapterNode(LeapHandPrimitiveServer):
     """The timer alone owns I/O; action completion does not terminate holding."""
 
-    def __init__(self):
+    DEFER_READY_LOG = True
+
+    def __init__(self, *, standard_entry=False):
         super().__init__()
-        self.declare_parameter('backend_mode', 'mock')
+        self.declare_parameter('hardware_enabled', False)
+        enabled = self.get_parameter('hardware_enabled').value
+        if type(enabled) is not bool:
+            raise ValueError('hardware_enabled must be a boolean.')
+        default_mode = 'recorded' if enabled else ('dry_run' if standard_entry else 'mock')
+        self.declare_parameter('backend_mode', default_mode)
         self.declare_parameter('port', '')
         self.declare_parameter('recorded_source_root', '')
         self.declare_parameter('recorded_hardware_enabled', False)
         self.declare_parameter('recorded_results_dir', 'results/recorded_motion')
         mode = self.get_parameter('backend_mode').value
+        self._adapter = None
+        if enabled and mode != 'recorded':
+            raise ValueError('hardware_enabled requires backend_mode:=recorded.')
+        if mode == 'dry_run':
+            self.get_logger().info(
+                'Ready: /leap_hand/execute_primitive backend=dry_run; hardware disabled.')
+            return
         if mode == 'mock':
             backend = MockBackend()
         elif mode == 'read_only':
-            backend = DynamixelReader(self.get_parameter('port').value)
+            port = self.get_parameter('port').value.strip()
+            if not port:
+                raise ValueError('read_only requires an explicit port for this PC.')
+            backend = DynamixelReader(port)
         elif mode == 'recorded':
             from leap_hand_control.recorded_backend import RecordedMotionBackend
             root = self.get_parameter('recorded_source_root').value.strip()
-            armed = self.get_parameter('recorded_hardware_enabled').value
+            legacy_armed = self.get_parameter('recorded_hardware_enabled').value
+            if type(legacy_armed) is not bool:
+                raise ValueError('recorded_hardware_enabled must be a boolean.')
+            if standard_entry and not enabled:
+                raise ValueError('The standard node requires hardware_enabled:=true for recorded mode.')
+            armed = enabled or legacy_armed
             if not root or not isinstance(armed, bool) or not armed:
                 raise ValueError('recorded requires a source root and explicit recorded_hardware_enabled:=true.')
             backend = RecordedMotionBackend(root, armed=armed,
                 expected_port=self.get_parameter('port').value,
                 results_dir=self.get_parameter('recorded_results_dir').value)
         else:
-            raise ValueError('backend_mode must be mock, read_only or recorded.')
+            raise ValueError('backend_mode must be dry_run, mock, read_only or recorded.')
         self._adapter = HandAdapter(backend, command_timeout_s=900. if mode == 'recorded' else 500.)
         self._waiting = None
         self._last_sample_time = None
@@ -56,17 +78,19 @@ class LeapHandAdapterNode(LeapHandPrimitiveServer):
         self._io_timer = self.create_timer(
             .075, self._io_tick, clock=Clock(clock_type=ClockType.STEADY_TIME))
         self.get_logger().info(
-            f'LEAP adapter mode={mode}. mock means simulated states/support; '
+            f'Ready: /leap_hand/execute_primitive backend={mode}. mock means simulated states/support; '
             'read_only never writes; recorded requires an explicit physical action. '
             'Do not also run a robot CMD or another serial owner.')
 
     def _accepts_primitive(self, primitive_id):
-        if getattr(self._adapter.backend, 'recorded_mode', False):
+        if self._adapter is not None and getattr(self._adapter.backend, 'recorded_mode', False):
             from leap_hand_control.recorded_assets import PRIMITIVES
             return primitive_id in PRIMITIVES or super()._accepts_primitive(primitive_id)
         return super()._accepts_primitive(primitive_id)
 
     def _physical_request_error(self, goal):
+        if self._adapter is None:
+            return 'HARDWARE_DISABLED', 'Enable recorded hardware explicitly when starting this node.'
         backend = self._adapter.backend
         if getattr(backend, 'recorded_mode', False) and backend.armed:
             try:
@@ -81,6 +105,8 @@ class LeapHandAdapterNode(LeapHandPrimitiveServer):
         return super()._physical_request_error(goal)
 
     async def _execute_validated(self, goal_handle, result, feedback):
+        if self._adapter is None:
+            return await super()._execute_validated(goal_handle, result, feedback)
         goal = goal_handle.request
         future = Future()
         command = dict(scan_id=goal.scan_id, execution_id=goal.execution_id,
@@ -169,10 +195,13 @@ class LeapHandAdapterNode(LeapHandPrimitiveServer):
         return response
 
     def destroy_node(self):
-        if hasattr(self, '_io_timer'):
-            self._io_timer.cancel()
-            self._adapter.close()
-        return super().destroy_node()
+        try:
+            if hasattr(self, '_io_timer'):
+                self._io_timer.cancel()
+                self._adapter.close()
+        finally:
+            destroyed = super().destroy_node()
+        return destroyed
 
 
 def main(args=None):

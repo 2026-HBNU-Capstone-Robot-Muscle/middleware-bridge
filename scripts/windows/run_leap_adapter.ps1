@@ -1,6 +1,6 @@
 param(
-    [ValidateSet('mock', 'read_only', 'recorded')]
-    [string]$Mode = 'mock',
+    [ValidateSet('dry_run', 'mock', 'read_only', 'recorded')]
+    [string]$Mode = 'dry_run',
     [string]$Port = '',
     [string]$SourceRoot = '',
     [switch]$EnableRecordedHardware
@@ -28,8 +28,14 @@ if ($Port) {
     $rosArguments += @('-p', "port:=$Port")
 }
 if ($Mode -eq 'recorded') {
-    $rosArguments += @('-p', "recorded_source_root:=$SourceRoot", '-p', 'recorded_hardware_enabled:=true')
+    $rosArguments += @('-p', "recorded_source_root:=$SourceRoot", '-p', 'hardware_enabled:=true')
 }
-Write-Output "LEAP adapter mode=$Mode. Stop the old leap_hand_primitive_server first."
-& ros2 run leap_hand_control leap_hand_adapter @rosArguments
+Write-Output "LEAP standard node mode=$Mode. Run only one LEAP action server and one serial owner."
+$entryScript = Join-Path $repositoryRoot '.colcon-win\install\lib\leap_hand_control\leap_hand_primitive_server-script.py'
+if (Test-Path -LiteralPath $entryScript -PathType Leaf) {
+    & python -X utf8 $entryScript @rosArguments
+}
+else {
+    & ros2 run leap_hand_control leap_hand_primitive_server @rosArguments
+}
 exit $LASTEXITCODE

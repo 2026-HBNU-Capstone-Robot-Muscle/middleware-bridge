@@ -2,6 +2,8 @@
 
 ## 현재 상태
 
+2026-11-27 오른손의 별도 recorded backend를 팀 표준 `leap_hand_primitive_server`의 실기 옵션에 연결했다. `hardware_enabled:=true`와 자료 경로를 명시하고 실제 액션을 요청해야 움직인다. 기본 GUI/노드는 dry-run이며 통합 PC의 ROS·모터·양손 검증은 남아 있다. [오른손 실행](leap-hardware.md)
+
 기존 Custom Hand ROS 액션 서버에 좌수 실기 제어기를 연결했습니다. 좌수 단독 시험은 서버에서 실기 모드를 명시적으로 켜고 `dry_run=false`로 요청합니다. GUI의 두 손 풀이 실행은 dry-run이며, LEAP Hand 실기 연동과 두 손 협동 시험은 남아 있습니다. [좌수 실기 실행 문서](custom-hand-hardware.md)
 
 GUI의 두 손 풀이 실행은 dry-run을 유지합니다.11/24 별도 `recorded` 오른손 backend에 원본 경로 구동과 사용자 색 관찰 기반 목표 면 선택을 연결했습니다. 명시적 활성화 후 G/가로/세로 및 현재 방향을 명시한 목표 면 액션을 처리하며,기존 GUI 전체 실기 실행은 계속 차단합니다. [recorded-motion.md](recorded-motion.md)와 [방향 대응](recorded-orientation.md)에 코드·가상 모터 검사와 남은 실제 ROS/실물 검증을 구분했습니다. 이번 보조자 작업에서 실제 장치를 움직이지 않았습니다.

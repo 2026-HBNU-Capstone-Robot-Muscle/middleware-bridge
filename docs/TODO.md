@@ -4,6 +4,8 @@ Windows ROS 2 미들웨어는 카메라로 큐브를 인식하고 풀이를 생�
 
 ### 2026-11-16 오른손 작업 재개 기준
 
+2026-11-27: 최신 main의 좌수·설치·인터페이스 변경을 병합하고, 오른손 저장 경로 backend를 표준 `leap_hand_primitive_server`의 명시적 `hardware_enabled` 옵션에 연결했다. 기본 dry-run은 유지하며 G/가로/세로·현재 면 방향 요청과 G 유지·오류/취소/정지를 재사용한다. [오른손 실기 실행](leap-hardware.md). 실제 ROS/모터·양손 검증은 남아 있다.
+
 - 원래 PC의 실물 기록은 [right-hand-status.md](right-hand-status.md)와 [근거 JSON](evidence/right_hand_20261116.json)에 반영했다. 이미 확보한 기록을 먼저 재사용하고, 새 PC·배선·조립으로 달라진 항목을 확인한다.
 - 오른손 통신 기준은 **1Mbps**, 최신 관절 ID 대응을 사용한다. 기존 deploy의3Mbps·옛 SIM2ARR을 현재 실물 확정값으로 복사하지 않는다.
 - 하드웨어 구현은 `feature/hardware`에서 진행하고 `apps/monitoring_ui`는 수정하지 않는다.

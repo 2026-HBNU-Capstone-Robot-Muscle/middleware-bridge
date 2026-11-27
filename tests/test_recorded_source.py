@@ -87,7 +87,10 @@ class SourceReplayTests(unittest.TestCase):
             if done == [1, 2]:
                 raise pose.OperatorStop()
 
-        with sequence.runtime_limits(), contextlib.redirect_stdout(io.StringIO()):
+        # The fake bus has zero transfer time. Use its virtual clock for the
+        # source read-age check too; host scheduling is not simulated I/O.
+        with sequence.runtime_limits(), patch('sequence_flip_checked.time',NS(monotonic=clock.now)), \
+                contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(pose.OperatorStop):
                 pose.run_pose(bus, initial, initial['position'], sequence.rows(initial['position']),
                     bus.report, cancel, sequence=sequence, limit=float('inf'),
@@ -208,7 +211,8 @@ class SourceReplayTests(unittest.TestCase):
         def cancel():
             if done:
                 raise pose.OperatorStop()
-        with sequence.runtime_limits(), contextlib.redirect_stdout(io.StringIO()):
+        with sequence.runtime_limits(), patch('sequence_flip_checked.time',NS(monotonic=clock.now)), \
+                contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(pose.OperatorStop):
                 pose.run_pose(bus, initial, initial['goal'], sequence.rows(initial['goal']),
                     bus.report, cancel, sequence=sequence, limit=float('inf'),

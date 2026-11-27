@@ -43,8 +43,9 @@ class LeapHandPrimitiveServer(Node):
             cancel_callback=self._cancel_request,
             callback_group=ReentrantCallbackGroup(),
         )
-        self.get_logger().info(
-            'Ready: /leap_hand/execute_primitive (dry-run only; hardware disabled)')
+        if not getattr(self, 'DEFER_READY_LOG', False):
+            self.get_logger().info(
+                'Ready: /leap_hand/execute_primitive (dry-run only; hardware disabled)')
 
     @staticmethod
     def _goal_request(_goal_request):
