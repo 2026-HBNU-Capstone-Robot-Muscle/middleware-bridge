@@ -1,6 +1,6 @@
 # 오른손 실물 기록과 미들웨어 연결 상태
 
-갱신일2026-11-16. 저장된 코드·로그를 읽어 문서를 갱신했으며 이 작업에서 장치를 열지 않았다.
+갱신일2026-11-24. 저장된 코드·로그를 읽어 문서를 갱신했으며 이 업로드 작업에서 장치를 열지 않았다.
 
 ## 확보한 기록
 
@@ -20,7 +20,7 @@
 
 - [공유 코드 기준본](https://github.com/2026-HBNU-Capstone-Robot-Muscle/right_rl_with_mujoco/tree/76a2438147207978ecf972d54a0904edb1180ea6/hardware/right_hand): 원본 코드·모델·학습/실험 기록 패키지22,022개 파일을 공유한 커밋.
 - [모터 대응](https://github.com/2026-HBNU-Capstone-Robot-Muscle/right_rl_with_mujoco/blob/76a2438147207978ecf972d54a0904edb1180ea6/hardware/right_hand/hand_motor_mapping.py).
-- 11/13 초기 빈손 모델 겹침 수정과 이후 실행 로그는 위 커밋 이후 원래 PC에서 추가한 자료다. 위 링크에 그 수정 코드까지 포함됐다고 안내하지 않는다. 이번 문서에는 요약·원본 해시를 전달한다.
+- [11/24 후속 공유본](https://github.com/2026-HBNU-Capstone-Robot-Muscle/right_rl_with_mujoco/tree/feature/hardware/hardware/right_hand)의 README와 저장소 루트 `RIGHT_HAND_UPDATE_20261124_MANIFEST.json`에서 이후 코드·실험 기록과 해시를 확인한다. 위11/12 고정 커밋은 당시 스냅샷이다.
 - Windows 실행 쪽 의존성은 기준본의 requirements-leap.txt를 참고한다. 설치된 .runtime과 WSL 학습 환경은 저장소 자료와 별도로 준비한다.
 
 ## 미들웨어에 연결할 계약
@@ -31,10 +31,27 @@
 4. 다음 primitive 진입은 실제 완료 판정 후 허용한다. 명령 발행만으로 큐브 자세·면 상태를 성공 값으로 갱신하지 않는다.
 5. 중앙 칸 색 추출과 중앙 ArUco 마커가 겹치는 문제는 인식 팀과 배치·관측 계약을 합의한다. 초기 면 상태와 성공한 회전에 따른 논리 상태 갱신, 실제 cube pose 관측을 구분한다.
 
+## 2026-11-16 ROS 어댑터 코드와 읽기 연결
+
+- [오른손 어댑터](leap-adapter.md)에 실제 motor ID 변환, ROS 측정/목표 상태 발행, mock 동작 완료·취소·지지 유지 계약을 구현했다. 기존 primitive 검증을 재사용하며 `dry_run=false` 차단은 유지한다.
+- 새 SDK READ-only backend로 원래 PC COM7/1Mbps의16개 모델1240 상태를2회 읽었고 포트를 닫았다. 목표 쓰기·토크 변경0회다. 근거는 `results/leap_adapter/read_only_20261116_071155_761082.json`이다.
+- 실제 ROS/DDS 실행과 실제 모터 출력 backend 연결은 아직 완료하지 않았다. 어댑터·통합 실행기의 장치 없는 시험39개를 통과했다.
+
+## 2026-11-24 실행파일과 검증 구분
+
+- `leap_measured_grip_hold.cmd`: 사용자 실측 확정 파지 G로 이동·유지.
+- `leap_grip_rotate_grip.cmd`: G→가로 회전→G. `leap_vertical_direct_grip.cmd`: G→세로 회전→G 계속 유지. 두 단독 동작에서 G 복귀 관찰을 확보했다.
+- `leap_two_axis_cycle.cmd`: 한 제어기에서 G→가로→G약10초→세로→G계속유지. 중간 OFF/확인 SPACE 없이 원본 목표열을 연결했으며 소프트웨어10검사 통과. 두 회전 연속 실물 성공은 미확인이다.
+- 현재 회전 실행은 1배75ms·최대2틱·450mA·기존PID와 건강/추종/통신 감시를 쓴다. 최신 세로 복귀는 불필요한 엄지 후퇴 없이 엄지 먼저 내림→기록한1번·2번→G다.
+- 미들웨어의 어댑터·실행 계약·정책 입력·마커 없는 pose 모듈을 포함한 장치 없는 시험은11/24 전체103개 통과했다. ROS 메시지/전송 대역을 쓴 소프트웨어 시험이며 실제 ROS/DDS·모터 출력 backend·양손 통합을 검증한 수치가 아니다.
+
 ## 마지막: 남은 문제와 검증
+
+11/24 추가 연결: [recorded backend](recorded-motion.md)는 기존 경로와 PoseBus를 재사용해 ROS의 G/가로/세로 직접 요청을 처리한다. 사용자 색 관찰로 [목표 면 선택](recorded-orientation.md)도 연결했다. 완료 뒤 G 유지·다음 요청·취소·OFF/설정 복구,24방향×6목표 계획을 장치 없는 전체137개 시험으로 확인했다. 실제 ROS/DDS·복합 모터 실행과 반복 방향 오차는 아직 확인하지 않았다.
 
 - 통합 PC의 포트·USB 어댑터·전원·배선·영점/부호·기계 한계와 독립 비상 정지 검증이 남아 있다. 기록의 COM7을 다른 PC에 고정하지 않는다.
 - 11/13 04:19 실행은 초기 파지에서, 04:27 실행은 큐브 배치 대기 중 통신 -3002로 중단됐다. 후자는356바이트 기대 응답 대신192/17/302바이트를 받았다. 특정 모터 고장이나 USB 단독 원인으로 단정하지 않는다.
 - 초기 엄지 끝–검지 뿌리 모델 겹침의 제한적 처리 후 저장 자세3개 × 정적201/동적9, 실행기18/예외7시험을 통과했다. 이후 실물 통신 중단과는 다른 문제이며 전체 경로 성공 인증이 아니다.
-- 회전→최종 TH/MF/RF 하부 파지→다음 회전의 전체 실물 연결, 윗단 공간과 양손 하중은 검증이 남아 있다. 최종 자세만 취해 유지하는 전용 파일도 아직 준비 완료로 기록하지 않는다.
-- ROS motor adapter·실측 policy shadow·cube/hand pose 및 stale 처리·완료/취소 전파가 남아 있다. middleware의 dry-run 차단과 calibration verified 필드를 이번 갱신에서 변경하지 않았다.
+- 최신 세로 `vertical_direct_grip_trial_20261124_081445_872143`은 G 유지에 도달한 뒤 상태 읽기 오류로 종료됐고 OFF·설정복구 확인도 실패했다. 앞선 정상 종료 기록과 구분하며 통신 원인을 확정하지 않는다.
+- 가로→G→세로→G의 연속 실물 실행과 반복, 실제 윗단 회전 하중·양손 간섭 통합은 검증이 남아 있다. G 전용 실행파일 준비와 단독 복귀 관찰을 전체 연속 성공으로 표시하지 않는다.
+- ROS recorded 목표 전송 코드의 실제 실행 확인·실측 policy shadow·cube/hand pose·상위 지지 heartbeat 감시와 실물 완료 판정이 남아 있다. 기존 상위 풀이·기본 서버의 dry-run 차단과 calibration verified 필드는 유지한다. recorded 별도 모드의 명시적 액션만 새로운 출력 경로를 제공한다.

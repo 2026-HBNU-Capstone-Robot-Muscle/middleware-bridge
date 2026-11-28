@@ -2,7 +2,11 @@
 
 ## 현재 상태
 
+2026-11-27 오른손의 별도 recorded backend를 팀 표준 `leap_hand_primitive_server`의 실기 옵션에 연결했다. `hardware_enabled:=true`와 자료 경로를 명시하고 실제 액션을 요청해야 움직인다. 기본 GUI/노드는 dry-run이며 통합 PC의 ROS·모터·양손 검증은 남아 있다. [오른손 실행](leap-hardware.md)
+
 기존 Custom Hand ROS 액션 서버에 좌수 실기 제어기를 연결했습니다. 좌수 단독 시험은 서버에서 실기 모드를 명시적으로 켜고 `dry_run=false`로 요청합니다. GUI의 두 손 풀이 실행은 dry-run이며, LEAP Hand 실기 연동과 두 손 협동 시험은 남아 있습니다. [좌수 실기 실행 문서](custom-hand-hardware.md)
+
+GUI의 두 손 풀이 실행은 dry-run을 유지합니다.11/24 별도 `recorded` 오른손 backend에 원본 경로 구동과 사용자 색 관찰 기반 목표 면 선택을 연결했습니다. 명시적 활성화 후 G/가로/세로 및 현재 방향을 명시한 목표 면 액션을 처리하며,기존 GUI 전체 실기 실행은 계속 차단합니다. [recorded-motion.md](recorded-motion.md)와 [방향 대응](recorded-orientation.md)에 코드·가상 모터 검사와 남은 실제 ROS/실물 검증을 구분했습니다. 이번 보조자 작업에서 실제 장치를 움직이지 않았습니다.
 
 ## 2026-11-16 추가로 확보한 오른손 기록
 
@@ -24,8 +28,8 @@
 | P0 | 큐브와 손의 pose/frame | middleware에 실측 `/cube/pose`, `/leap_hand/palm_pose`, transform publisher 없음. 카메라 모델도 미정 | pose provider, 공통 `frame_id`, 카메라/robot extrinsics, 초기 URFDLB 면 대응, 갱신·stale 기준 및 LEAP palm-to-cube pose 구현·측정 |
 | P0 | LEAP 실제 정책 입력 | 참조 `policy_runner.py`는 `--cams`를 요구하고 손 관절 측정, cube quaternion·palm 위치로 108차원 관측을 만듦. 무카메라 상태는 명령에 쓰지 말라고 코드에 명시 | 카메라/pose provider를 고르고 middleware 입력 토픽과 관측 이름·순서·단위·timestamp를 연결한 뒤 실측 shadow 비교 |
 | P0 | Custom 정책 실측 observation | 좌수 제어기의 모터 위치·속도 변환과 정책 출력의 위치 명령 변환을 재사용한다 | 통합 환경에서 ID4/1/2/3의 입력 순서·부호·단위를 확인하고 실기 PPO 입력과 모터 피드백을 대조한다 |
-| P0 | 정책 실행주기와 primitive 의미 | 원본 LEAP 정책50ms, 현재 오른손 저장 경로 재생75ms/최대2틱, Custom 기본30ms | backend별 주기·관측 이력·목표 의미를 분리. 도달 응답 이후 오른손 지지가 계속되도록 수명·완료/취소/timeout 규약을 결정 |
-| P0 | Middleware motor driver | Custom Hand는 기존 시리얼 제어기를 연결했으며 `pixi.toml`·`pixi.lock`에 `pyserial`과 `stable-baselines3`를 반영했다 | 이식한 좌수 노드의 실제 통신과 정지 동작을 검증한다. LEAP 쪽은 Windows driver/SDK, 포트 소유·상태 발행·command adapter와 calibration gate 연결을 진행한다 |
+| P0 | 정책 실행주기와 primitive 의미 | 원본 LEAP 정책50ms, 현재 오른손 저장 경로 재생75ms/준비·가로최종2틱·허용구간최대6틱, Custom 기본30ms | backend별 주기·관측 이력·목표 의미를 분리. 도달 응답 이후 오른손 지지가 계속되도록 수명·완료/취소/timeout 규약을 결정 |
+| P0 | Middleware motor driver | Custom Hand의 기존 실기 제어기와 PPO·설정을 이식했고 pyserial/SB3를 잠갔다. 오른손은 READ-only 및 별도 recorded backend·목표 면 선택·단일 포트 소유·상태 발행과 SDK4.1.0 연결을 구현했다 | 이식한 양손 노드의 실제 통신·완료·정지를 확인한다. 오른손 표준 노드 실기 진입점, 완료 방향 상태 소비·지지 감시와 양손 calibration 검증을 연결한다 |
 | P0 | 완료 판정과 handoff | 현재 dry-run 성공은 adapter 응답이며 실물 관절 도달·grasp/support·큐브 회전 확인이 아님 | 관절 추종 오차·정착 시간, 큐브 방향/레이어 회전, LEAP 지지와 Custom grasp/release를 확인할 계측과 기준을 정의하고 실패 시 다음 primitive 차단 |
 | P0 | 안전 정지·기계 한계 | `hardware_calibration.example.json`의 emergency stop, stop behavior, joint/workspace limits, completion feedback, handoff 검증이 모두 false | 독립 비상정지, torque-off/hold 동작, 작업공간·속도·전류 한계, 통신 단절·stale 상태 동작, 큐브 낙하·끼임 대응과 회수 절차를 실제 장치에서 검증·기록 |
 | P1 | Custom 모델 설치 재현 | 이식한 패키지의 실기 ZIP과 설정 해시가 BE90522E…로 일치하고 Windows의 SB3 로딩·추론을 확인했다. 기존 shadow ZIP은 5B9A3F36…이다 | 새 Windows 설치에서 잠금 파일로 빌드하고 실기·shadow 모델이 각각 올바른 경로에서 로드되는지 재확인한다 |

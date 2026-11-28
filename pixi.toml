@@ -15,8 +15,10 @@ ultralytics = "==8.4.174"
 torch = "==2.15.0"
 pyserial = "==3.5"
 stable-baselines3 = "==2.7.0"
+dynamixel-sdk = "==4.1.0"
 
 [tasks]
+check-execution-contract = "python -B scripts/check_execution_contract.py"
 list-packages = "colcon list --base-paths src"
 build-windows = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build_ros2.ps1"
 rosbridge = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows/run_rosbridge.ps1"

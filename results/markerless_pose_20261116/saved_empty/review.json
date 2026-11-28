@@ -1,0 +1,24 @@
+{
+  "image": "cube_grasp_hold_20261116_200443_746252\\camera\\frame_00000.jpg",
+  "image_sha256": "cad48c885251ae0369e469dd885b8f883b3f5ceb0a1b798523fd0a116817399f",
+  "calibration": "camera1_720.npz",
+  "calibration_sha256": "86c1f866ae6505c1352d4e9d681d803476c513b12e3c5ab79739c1526ada1f92",
+  "resolution": [
+    1280,
+    720
+  ],
+  "roi_source": "Manual coarse search ROIs for saved-image feature diagnostics. Not YOLO results or surveyed face corners.",
+  "features": [
+    {
+      "index": 0,
+      "accepted": false,
+      "reason": "Sticker centers do not fit a perspective3x3 face grid"
+    }
+  ],
+  "camera_binding_verified": false,
+  "physical_pose_verified": false,
+  "policy_pose_ready": false,
+  "devices_opened": false,
+  "pose_estimated": false,
+  "pose_rejection": "No accepted six-face color reference; image features only"
+}

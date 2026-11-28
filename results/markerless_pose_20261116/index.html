@@ -1,0 +1,58 @@
+<!doctype html><meta charset="utf-8"><title>마커 없는 큐브 pose 입력부 검토</title><style>body{max-width:1100px;margin:30px auto;font:16px system-ui;color:#e5e7eb;background:#101827}article{background:#19243a;padding:20px;margin:20px 0;border-radius:10px}img{max-width:100%}pre{white-space:pre-wrap}strong{color:#fbbf24}</style><h1>마커 없는 큐브 pose 입력부</h1><p>2026-11-16. 실물 구동 없음. <strong>합성 정확도는 실물 정확도가 아니다.</strong></p><article><h2>합성 영상 전체 경로</h2><img src="synthetic/overlay.png"><pre>{
+  &quot;synthetic_only&quot;: true,
+  &quot;position_error_mm&quot;: 0.48668665179777076,
+  &quot;orientation_error_deg&quot;: 0.19205863931906753,
+  &quot;visible_faces&quot;: [
+    &quot;F&quot;,
+    &quot;D&quot;
+  ],
+  &quot;reprojection_rms_px&quot;: 0.45298095209448,
+  &quot;camera_binding_verified&quot;: false,
+  &quot;physical_pose_verified&quot;: false,
+  &quot;policy_pose_ready&quot;: false
+}</pre></article><article><h2>실제 저장 사진: 선명한 큐브</h2><img src="saved_clear_cube/overlay.jpg"><pre>[
+  {
+    &quot;index&quot;: 0,
+    &quot;accepted&quot;: false,
+    &quot;reason&quot;: &quot;Sticker centers do not fit a perspective3x3 face grid&quot;
+  },
+  {
+    &quot;index&quot;: 1,
+    &quot;accepted&quot;: true,
+    &quot;refined_corners_px&quot;: [
+      [
+        255.39610888849097,
+        214.46410255938562
+      ],
+      [
+        539.9632577061319,
+        225.79264464119075
+      ],
+      [
+        532.6176447754788,
+        463.12401554855717
+      ],
+      [
+        281.5428229454928,
+        440.3337986834824
+      ]
+    ]
+  }
+]</pre></article><article><h2>실제 저장 사진: 가림</h2><img src="saved_cube/overlay.jpg"><pre>[
+  {
+    &quot;index&quot;: 0,
+    &quot;accepted&quot;: false,
+    &quot;reason&quot;: &quot;Sticker centers do not fit a perspective3x3 face grid&quot;
+  },
+  {
+    &quot;index&quot;: 1,
+    &quot;accepted&quot;: false,
+    &quot;reason&quot;: &quot;Sticker centers do not fit a perspective3x3 face grid&quot;
+  }
+]</pre></article><article><h2>실제 저장 사진: 빈손</h2><img src="saved_empty/overlay.jpg"><pre>[
+  {
+    &quot;index&quot;: 0,
+    &quot;accepted&quot;: false,
+    &quot;reason&quot;: &quot;Sticker centers do not fit a perspective3x3 face grid&quot;
+  }
+]</pre></article><p>실제 저장 사진은 수동 탐색 ROI로 영상 특징만 확인했다. 검증된6면 중심색·카메라 지정·좌표 등록이 없어 정책 pose는 발행하지 않는다. YOLO·ROS 실제 실행 및 카메라 노출/가림 조건은 후속 확인이 필요하다.</p>

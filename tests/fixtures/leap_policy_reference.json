@@ -1,0 +1,10 @@
+{
+  "seed": 20261116,
+  "observation_samples": 128,
+  "actor_samples": 512,
+  "original_builder_sha256": "b265cd2d979c0fd94daf1653fa6bd0f22291103df591d19377c51b38be4aadb0",
+  "policy_sha256": "dc220d146bc5532c4ae09907c6d6bbc887335389d215afaafb69eeab679560e7",
+  "fixture_sha256": "8c81d7be72f28ca88fa6ba42f5dc99a9b456a7a76024f805325a273f7d0ea48b",
+  "origin": "Pre-change middleware builder; previously matched original training deployment in policy_audit/contract_audit.json. Actor unchanged.",
+  "devices_opened": false
+}

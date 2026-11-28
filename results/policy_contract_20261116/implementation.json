@@ -1,0 +1,31 @@
+{
+  "branch": "feature/hardware",
+  "head": "c2a929f18671ac155028160b63e0199ee3a71878",
+  "changed_files": [
+    "src/control/leap_hand_control/leap_hand_control/joint_mapping.py",
+    "src/control/leap_hand_control/leap_hand_control/hardware_adapter.py",
+    "src/control/leap_hand_control/leap_hand_control/observation_builder.py",
+    "src/control/leap_hand_control/leap_hand_control/policy_shadow_node.py",
+    "tests/test_leap_policy_contract.py",
+    "tests/test_leap_policy_shadow.py",
+    "docs/leap-policy-contract.md",
+    "docs/TODO.md"
+  ],
+  "source_sha256": {
+    "src/control/leap_hand_control/leap_hand_control/joint_mapping.py": "c727dc7d91312403d1dcd1a1682fb241f6ddde3acc5d7f1d29df7d443290cb26",
+    "src/control/leap_hand_control/leap_hand_control/hardware_adapter.py": "b206dc712a7863c26c19f2b29af6f80244c60abd2fe656aa33c11e4e5ade419a",
+    "src/control/leap_hand_control/leap_hand_control/observation_builder.py": "36a6d4750a5c2a4be0669cf629b2b008788d63fa0ddea60c35e2affeb6322eb7",
+    "src/control/leap_hand_control/leap_hand_control/policy_shadow_node.py": "25096923b464bf859dd3e0bfb8240ea31e475bd8ecdffb55f57921a4f2f73d8b",
+    "tests/test_leap_policy_contract.py": "e4f86e55696a85577b456ef05e670a9560398147afe05566977a3ffee70bd918",
+    "tests/test_leap_policy_shadow.py": "f30b652928a1ab6185c5778e974253877f22f3fd20fee43513324ef8402a1910",
+    "docs/leap-policy-contract.md": "56f2c4a3ece66d0f8bce153ce8483cc9c8ec92b1e1467b56ca5131f4f411cb7e",
+    "docs/TODO.md": "ac209e9ca9156e4d98dee944509bfec1b9261ed6c9497da54f67f76ba64f28d3"
+  },
+  "frozen_sources_checked": 170,
+  "frozen_sources_unchanged": true,
+  "monitoring_ui_unchanged": true,
+  "committed": false,
+  "pushed": false,
+  "devices_opened": false,
+  "ros_runtime_tested": false
+}

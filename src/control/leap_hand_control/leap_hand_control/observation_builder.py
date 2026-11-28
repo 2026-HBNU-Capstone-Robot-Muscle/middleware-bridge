@@ -3,14 +3,23 @@
 import numpy as np
 
 
-JOINT_NAMES = (
-    'if_mcp', 'if_rot', 'if_pip', 'if_dip',
-    'mf_mcp', 'mf_rot', 'mf_pip', 'mf_dip',
-    'rf_mcp', 'rf_rot', 'rf_pip', 'rf_dip',
-    'th_cmc', 'th_axl', 'th_mcp', 'th_ipl',
-)
+from leap_hand_control.joint_mapping import JOINT_NAMES
 HISTORY_LEN = 3
 NQ = 16
+
+
+def _vector(values, size, label):
+    value = np.asarray(values, dtype=np.float64)
+    if value.shape != (size,) or not np.isfinite(value).all():
+        raise ValueError(f'{label} must contain{size} finite values.')
+    return value
+
+
+def _unit_quaternion(values, label):
+    value = _vector(values, 4, label)
+    if not np.isclose(np.linalg.norm(value), 1.0, rtol=0., atol=1e-6):
+        raise ValueError(f'{label} must be a unit quaternion in w,x,y,z order.')
+    return value
 
 
 def quat_mul(a, b):
@@ -54,12 +63,8 @@ class LeapObservationBuilder:
 
     def fill_orientation_history(self, cube_quat_wxyz, goal_quat_wxyz):
         """Seed all three orientation-history slots from an explicit plan state."""
-        cube_quat = np.asarray(cube_quat_wxyz, dtype=np.float64)
-        goal_quat = np.asarray(goal_quat_wxyz, dtype=np.float64)
-        if (cube_quat.shape != (4,) or goal_quat.shape != (4,)
-                or not np.all(np.isfinite(cube_quat))
-                or not np.all(np.isfinite(goal_quat))):
-            raise ValueError('Cube and goal orientations must be finite quaternions.')
+        cube_quat = _unit_quaternion(cube_quat_wxyz, 'Cube orientation')
+        goal_quat = _unit_quaternion(goal_quat_wxyz, 'Goal orientation')
         error = self._xmat_diff(cube_quat, goal_quat)
         self.cube_ori_err_hist = np.tile(error, HISTORY_LEN)
 
@@ -69,34 +74,43 @@ class LeapObservationBuilder:
 
     def build(self, q_meas, q_cmd, palm_position, cube_position,
               cube_quat_wxyz, goal_quat_wxyz):
-        q_meas = np.asarray(q_meas, dtype=np.float64)
-        q_cmd = np.asarray(q_cmd, dtype=np.float64)
+        # Validate all fields before preparing any new history. Rejection must
+        # not leave partially advanced joint/position histories.
+        q_meas = _vector(q_meas, NQ, 'Measured joint positions')
+        q_cmd = _vector(q_cmd, NQ, 'Commanded joint positions')
+        palm_position = _vector(palm_position, 3, 'Palm position')
+        cube_position = _vector(cube_position, 3, 'Cube position')
+        cube_quat_wxyz = _unit_quaternion(cube_quat_wxyz, 'Cube orientation')
+        goal_quat_wxyz = _unit_quaternion(goal_quat_wxyz, 'Goal orientation')
         qe = q_meas - q_cmd
-        self.qpos_err_hist = np.roll(self.qpos_err_hist, NQ)
-        self.qpos_err_hist[:NQ] = qe
+        q_history = np.roll(self.qpos_err_hist, NQ)
+        q_history[:NQ] = qe
 
         position_error = (
             np.asarray(palm_position, dtype=np.float64)
             - np.asarray(cube_position, dtype=np.float64))
-        self.cube_pos_err_hist = np.roll(self.cube_pos_err_hist, 3)
-        self.cube_pos_err_hist[:3] = position_error
+        position_history = np.roll(self.cube_pos_err_hist, 3)
+        position_history[:3] = position_error
 
         qd = quat_mul(cube_quat_wxyz, quat_inv(goal_quat_wxyz))
-        self.cube_ori_err_hist = np.roll(self.cube_ori_err_hist, 6)
-        self.cube_ori_err_hist[:6] = quat_to_mat(qd).ravel()[3:]
+        orientation_history = np.roll(self.cube_ori_err_hist, 6)
+        orientation_history[:6] = quat_to_mat(qd).ravel()[3:]
 
         qn = qd / np.linalg.norm(qd)
         orientation_error = 2.0 * np.arcsin(min(np.linalg.norm(qn[1:]), 1.0))
         observation = np.concatenate([
             q_meas,
-            self.qpos_err_hist,
-            self.cube_pos_err_hist,
-            self.cube_ori_err_hist,
+            q_history,
+            position_history,
+            orientation_history,
             self.last_act,
             [orientation_error],
         ])
         if observation.shape != (108,) or not np.all(np.isfinite(observation)):
             raise ValueError('LEAP observation must be 108 finite values.')
+        self.qpos_err_hist = q_history
+        self.cube_pos_err_hist = position_history
+        self.cube_ori_err_hist = orientation_history
         return observation
 
     def set_last_action(self, action):

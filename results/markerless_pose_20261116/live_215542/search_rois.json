@@ -1,0 +1,41 @@
+{
+  "source": "Manual coarse search regions on the new camera image; not measured physical corners or YOLO detections",
+  "regions": {
+    "upper": [
+      [
+        356,
+        203
+      ],
+      [
+        589,
+        220
+      ],
+      [
+        532,
+        411
+      ],
+      [
+        284,
+        379
+      ]
+    ],
+    "front": [
+      [
+        284,
+        379
+      ],
+      [
+        532,
+        411
+      ],
+      [
+        562,
+        540
+      ],
+      [
+        333,
+        525
+      ]
+    ]
+  }
+}

@@ -11,6 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/model', ['model/cube-detector.pt']),
+        ('share/' + package_name + '/config', ['config/markerless_registration.example.json']),
     ],
     install_requires=['setuptools', 'ultralytics>=8.0,<9'],
     zip_safe=True,
@@ -30,6 +31,7 @@ setup(
             'cube_offline_replay = cube_detection.offline_replay_node:main',
             'cube_camera_capture = cube_detection.camera_capture_node:main',
             'cube_camera_manager = cube_detection.camera_manager_node:main',
+            'markerless_cube_pose = cube_detection.markerless_pose_node:main',
         ],
     },
 )

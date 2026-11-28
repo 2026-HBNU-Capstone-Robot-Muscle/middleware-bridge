@@ -1,0 +1,27 @@
+{
+  "image_sha256": "cad48c885251ae0369e469dd885b8f883b3f5ceb0a1b798523fd0a116817399f",
+  "source": "Manual coarse search ROIs for saved-image feature diagnostics. Not YOLO results or surveyed face corners.",
+  "detections": [
+    {
+      "corners_px": [
+        [
+          260.0,
+          180.0
+        ],
+        [
+          900.0,
+          180.0
+        ],
+        [
+          900.0,
+          600.0
+        ],
+        [
+          260.0,
+          600.0
+        ]
+      ],
+      "confidence": 1.0
+    }
+  ]
+}

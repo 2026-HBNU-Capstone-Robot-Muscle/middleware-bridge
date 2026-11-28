@@ -20,6 +20,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FaceDetectionArray.msg"
   "msg/FaceCaptureLabel.msg"
   "msg/CubeState.msg"
+  "msg/CubeColorReference.msg"
   "msg/CubeSolution.msg"
   "msg/CubeExecutionStatus.msg"
   "msg/LeapPolicyInput.msg"

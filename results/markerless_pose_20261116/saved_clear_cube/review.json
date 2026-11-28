@@ -1,0 +1,46 @@
+{
+  "image": "middle_clearance_probe_20261106_230902_998326\\cube_grasp_hold.jpg",
+  "image_sha256": "2a1fd03e417b3a4b52b10d63d8cab230a11650593f0fe2b27f18b8971e70a8c4",
+  "calibration": "camera1_720.npz",
+  "calibration_sha256": "86c1f866ae6505c1352d4e9d681d803476c513b12e3c5ab79739c1526ada1f92",
+  "resolution": [
+    1280,
+    720
+  ],
+  "roi_source": "Manual coarse search ROIs for saved-image feature diagnostics. Not YOLO results or surveyed face corners.",
+  "features": [
+    {
+      "index": 0,
+      "accepted": false,
+      "reason": "Sticker centers do not fit a perspective3x3 face grid"
+    },
+    {
+      "index": 1,
+      "accepted": true,
+      "refined_corners_px": [
+        [
+          255.39610888849097,
+          214.46410255938562
+        ],
+        [
+          539.9632577061319,
+          225.79264464119075
+        ],
+        [
+          532.6176447754788,
+          463.12401554855717
+        ],
+        [
+          281.5428229454928,
+          440.3337986834824
+        ]
+      ]
+    }
+  ],
+  "camera_binding_verified": false,
+  "physical_pose_verified": false,
+  "policy_pose_ready": false,
+  "devices_opened": false,
+  "pose_estimated": false,
+  "pose_rejection": "No accepted six-face color reference; image features only"
+}

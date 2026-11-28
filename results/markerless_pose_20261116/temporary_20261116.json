@@ -1,0 +1,27 @@
+{
+  "cube_side_m": 0.055,
+  "camera_calibration_sha256": "86c1f866ae6505c1352d4e9d681d803476c513b12e3c5ab79739c1526ada1f92",
+  "camera_binding_record": "",
+  "placement": {
+    "setup_id": "temporary_20261116",
+    "temporary": true,
+    "registered_color_scan_id": "",
+    "prior_profile": "",
+    "camera_settings_changed": false,
+    "wrist_remounted": false
+  },
+  "registration": {
+    "camera_binding_verified": false,
+    "world_registration_verified": false,
+    "wrist_sensor_registration_verified": false,
+    "cube_frame_registration_verified": false,
+    "world_frame": "",
+    "camera_frame": "camera_optical_frame",
+    "world_from_camera": null,
+    "wrist_from_palm_sensor": null,
+    "color_cube_from_policy_cube": null,
+    "wrist_id": 41,
+    "wrist_size_m": 0.027,
+    "diagnostic_only": true
+  }
+}
